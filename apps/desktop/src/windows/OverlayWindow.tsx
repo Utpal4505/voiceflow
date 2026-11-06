@@ -13,6 +13,7 @@ export default function OverlayWindow() {
   const currentSessionIdRef = useRef<string | null>(null);
   const silenceCountRef = useRef(0);
   const startTimeRef = useRef<number>(0);
+  const hasInsertedRef = useRef(false);
 
   const {
     isConnected,
@@ -58,6 +59,7 @@ export default function OverlayWindow() {
       currentSessionIdRef.current = null;
     }
     stopRecording();
+    hasInsertedRef.current = false;
     invoke("hide_overlay");
   }, [cancelSession, stopRecording]);
 
@@ -68,6 +70,20 @@ export default function OverlayWindow() {
     }
   }, [sessionState, stopSession, stopRecording]);
 
+  const handleInsert = useCallback(
+    async (textToInsert: string) => {
+      if (hasInsertedRef.current || !textToInsert) return;
+      hasInsertedRef.current = true;
+
+      try {
+        await invoke("insert_text", { text: textToInsert });
+      } catch {
+        handleClose();
+      }
+    },
+    [handleClose]
+  );
+
   const { selectedDeviceId, availableDevices, initDeviceListener } =
     useSettingsStore();
 
@@ -76,10 +92,20 @@ export default function OverlayWindow() {
     currentSessionIdRef.current = sessionId;
     startTimeRef.current = Date.now();
     silenceCountRef.current = 0;
+    hasInsertedRef.current = false;
 
     startSession(sessionId);
     startRecording();
   }, [startSession, startRecording]);
+
+  useEffect(() => {
+    if (sessionState === "done" && transcript?.text && !hasInsertedRef.current) {
+      const timer = setTimeout(() => {
+        handleInsert(transcript.text);
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+  }, [sessionState, transcript, handleInsert]);
 
   useEffect(() => {
     const unlisten = initDeviceListener();
@@ -139,7 +165,7 @@ export default function OverlayWindow() {
                 <span className="text-indigo-400 font-medium">Finalizing transcription…</span>
               ) : sessionState === "done" ? (
                 <span className="text-emerald-400 font-medium">
-                  {transcript?.text || "Transcription finalized"}
+                  {transcript?.text ? `Inserting: "${transcript.text}"` : "Inserting text…"}
                 </span>
               ) : sessionState === "error" || sessionError || audioError ? (
                 <span className="text-red-400 font-medium truncate">
@@ -185,10 +211,10 @@ export default function OverlayWindow() {
 
           {sessionState === "done" && (
             <button
-              onClick={handleClose}
-              className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-emerald-500 cursor-pointer active:scale-95"
+              onClick={() => transcript?.text && handleInsert(transcript.text)}
+              className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-emerald-500 cursor-pointer active:scale-95 shadow-sm"
             >
-              Done ✓
+              Insert Now ↵
             </button>
           )}
 

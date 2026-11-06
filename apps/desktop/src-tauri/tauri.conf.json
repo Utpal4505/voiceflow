@@ -27,7 +27,7 @@
         "title": "VoiceFlow Overlay",
         "url": "index.html#overlay",
         "width": 480,
-        "height": 180,
+        "height": 320,
         "decorations": false,
         "transparent": true,
         "alwaysOnTop": true,

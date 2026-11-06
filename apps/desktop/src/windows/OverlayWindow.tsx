@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import WaveformBars from "../components/overlay/WaveformBars";
 import { useAudio } from "../hooks/useAudio";
 import { useWebSocket } from "../hooks/useWebSocket";
@@ -10,12 +10,56 @@ import { Mic, Check, AlertCircle, Loader2 } from "lucide-react";
 
 const MAX_RECORDING_MS = 180_000;
 
+// Simple logger ring buffer — visible in overlay UI for debugging
+const MAX_LOGS = 10;
+function makeLogger() {
+  const listeners = new Set<(logs: string[]) => void>();
+  const lines: string[] = [];
+  return {
+    log(msg: string) {
+      const ts = new Date().toISOString().slice(11, 23);
+      lines.push(`[${ts}] ${msg}`);
+      if (lines.length > MAX_LOGS) lines.shift();
+      listeners.forEach((fn) => fn([...lines]));
+    },
+    subscribe(fn: (logs: string[]) => void) {
+      listeners.add(fn);
+      return () => listeners.delete(fn);
+    },
+    get() {
+      return [...lines];
+    },
+  };
+}
+const dbg = makeLogger();
+
+/** Wraps a promise with a hard timeout — if it doesn't resolve in `ms`, resolves anyway */
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T | undefined> {
+  return Promise.race([
+    p,
+    new Promise<undefined>((resolve) => {
+      setTimeout(() => {
+        dbg.log(`WARN: ${label} timed out after ${ms}ms — skipping`);
+        resolve(undefined);
+      }, ms);
+    }),
+  ]);
+}
+
 export default function OverlayWindow() {
   const currentSessionIdRef = useRef<string | null>(null);
   const startTimeRef = useRef<number>(0);
   const streamedTextRef = useRef<string>("");
   const reconcileQueueRef = useRef<Promise<void>>(Promise.resolve());
   const hasFinalizedRef = useRef(false);
+
+  const [debugLogs, setDebugLogs] = useState<string[]>([]);
+  const [showDebug] = useState(true); // set false to hide debug panel
+
+  useEffect(() => {
+    const unsub = dbg.subscribe(setDebugLogs);
+    return () => { unsub(); };
+  }, []);
 
   const { addHistoryItem } = useHistoryStore();
 
@@ -29,10 +73,11 @@ export default function OverlayWindow() {
     stopSession,
     cancelSession,
   } = useWebSocket();
+
   const sessionStateRef = useRef(sessionState);
   sessionStateRef.current = sessionState;
 
-  // Stream reconciliation queue to prevent out-of-order typing
+  // Stream reconciliation queue — each step has a 1500ms hard timeout
   const queueReconcile = useCallback((targetText: string) => {
     if (!targetText || targetText.trim().length === 0) return;
 
@@ -54,17 +99,20 @@ export default function OverlayWindow() {
         const backspaces = current.length - commonPrefixLen;
         const toAppend = next.slice(commonPrefixLen);
 
+        dbg.log(`RECONCILE bs=${backspaces} append="${toAppend.slice(0, 30)}"`);
+
         streamedTextRef.current = next;
 
         if (backspaces > 0 || toAppend.length > 0) {
-          await invoke("reconcile_streamed_text", {
-            backspaces,
-            append: toAppend,
-          });
+          await withTimeout(
+            invoke("reconcile_streamed_text", { backspaces, append: toAppend }),
+            1500,
+            "reconcile_streamed_text"
+          );
         }
       })
       .catch((err) => {
-        console.error("Stream reconciliation error:", err);
+        dbg.log(`ERR reconcile: ${err}`);
       });
   }, []);
 
@@ -86,10 +134,11 @@ export default function OverlayWindow() {
   // Cancel and cleanly erase any streamed draft text
   const handleCancel = useCallback(async () => {
     if (hasFinalizedRef.current) {
-      // Already done — just hide, don't erase text
+      dbg.log("handleCancel: already finalized — just hiding");
       invoke("hide_overlay").catch(() => {});
       return;
     }
+    dbg.log("handleCancel: cancelling session");
     stopRecording();
     const sessionId = currentSessionIdRef.current;
     if (sessionId) {
@@ -102,8 +151,13 @@ export default function OverlayWindow() {
     hasFinalizedRef.current = false;
 
     if (charsToErase > 0) {
+      dbg.log(`handleCancel: erasing ${charsToErase} chars`);
       try {
-        await invoke("cancel_streamed_text", { total_chars: charsToErase });
+        await withTimeout(
+          invoke("cancel_streamed_text", { total_chars: charsToErase }),
+          1500,
+          "cancel_streamed_text"
+        );
       } catch {
         // ignore
       }
@@ -115,10 +169,13 @@ export default function OverlayWindow() {
   const handleCancelRef = useRef(handleCancel);
   handleCancelRef.current = handleCancel;
 
-  // Dismiss overlay and reset state without erasing streamed text
-  // Only call when NOT already finalized — avoids double-action from hide_overlay re-emit
+  // Dismiss overlay without erasing streamed text (used after error)
   const handleDismiss = useCallback(() => {
-    if (hasFinalizedRef.current) return; // already finalized, do nothing
+    if (hasFinalizedRef.current) {
+      dbg.log("handleDismiss: already finalized — no-op");
+      return;
+    }
+    dbg.log("handleDismiss: dismissing");
     stopRecording();
     const sessionId = currentSessionIdRef.current;
     if (sessionId) {
@@ -136,17 +193,24 @@ export default function OverlayWindow() {
   // Accept and finalize dictation
   const handleFinalize = useCallback(
     async (finalText: string) => {
-      if (hasFinalizedRef.current) return;
+      if (hasFinalizedRef.current) {
+        dbg.log("handleFinalize: already finalized — skip");
+        return;
+      }
       hasFinalizedRef.current = true;
+      dbg.log(`handleFinalize: finalText="${finalText.slice(0, 40)}"`);
 
       stopRecording();
 
-      // Reconcile any remaining difference with final transcript
+      // Enqueue the final reconcile
       if (finalText && finalText.trim().length > 0) {
         queueReconcileRef.current(finalText);
       }
 
-      await reconcileQueueRef.current;
+      // Wait for reconcile queue with a hard 3s overall cap
+      dbg.log("handleFinalize: awaiting reconcile queue...");
+      await withTimeout(reconcileQueueRef.current, 3000, "reconcileQueue");
+      dbg.log("handleFinalize: reconcile done");
 
       const textToRecord = (finalText || streamedTextRef.current).trim();
       if (textToRecord) {
@@ -159,15 +223,12 @@ export default function OverlayWindow() {
 
       const sessionId = currentSessionIdRef.current;
       if (sessionId) {
-        // Use cancelSession (not resetSession) so we don't trigger a redundant server round-trip
         cancelSession(sessionId);
         currentSessionIdRef.current = null;
       }
 
       streamedTextRef.current = "";
-      // hasFinalizedRef stays true so overlay:hide re-emission is a no-op
-
-      // Directly call Tauri hide — do NOT emit overlay:hide here (would trigger handleDismiss loop)
+      dbg.log("handleFinalize: hiding overlay");
       invoke("hide_overlay").catch(() => {});
     },
     [addHistoryItem, cancelSession]
@@ -177,11 +238,11 @@ export default function OverlayWindow() {
   handleFinalizeRef.current = handleFinalize;
 
   const handleSubmit = useCallback(() => {
+    dbg.log(`handleSubmit: state=${sessionStateRef.current}`);
     if (sessionStateRef.current === "recording" && currentSessionIdRef.current) {
       stopSession(currentSessionIdRef.current);
       stopRecording();
     } else if (sessionStateRef.current === "processing") {
-      // User pressed Enter while waiting for whisper-cli: fast finalize with already streamed text
       handleFinalizeRef.current(streamedTextRef.current);
     } else if (sessionStateRef.current === "done") {
       handleFinalizeRef.current(transcript?.text || "");
@@ -193,7 +254,6 @@ export default function OverlayWindow() {
 
   const onChunkCallback = useCallback((chunk: ArrayBuffer, seq: number) => {
     handleAudioChunkRef.current(chunk, seq);
-
     if (Date.now() - startTimeRef.current > MAX_RECORDING_MS) {
       handleSubmitRef.current();
     }
@@ -204,9 +264,11 @@ export default function OverlayWindow() {
 
   const handleStartRecording = useCallback(() => {
     if (sessionStateRef.current === "recording") {
+      dbg.log("handleStartRecording: already recording — skip");
       return;
     }
     const sessionId = crypto.randomUUID();
+    dbg.log(`handleStartRecording: new session ${sessionId.slice(0, 8)}`);
     currentSessionIdRef.current = sessionId;
     startTimeRef.current = Date.now();
     hasFinalizedRef.current = false;
@@ -223,41 +285,44 @@ export default function OverlayWindow() {
   // Stream incoming partial transcript live into active text field
   useEffect(() => {
     if (sessionState === "recording" && transcript?.text) {
+      dbg.log(`PARTIAL: "${transcript.text.slice(0, 40)}"`);
       queueReconcile(transcript.text);
     }
   }, [sessionState, transcript, queueReconcile]);
 
-  // When final transcript arrives, finalize and accept immediately
+  // When final transcript arrives, finalize immediately
   useEffect(() => {
     if (sessionState === "done") {
-      const finalText = transcript?.text || "";
-      handleFinalizeRef.current(finalText);
+      dbg.log(`DONE: finalText="${transcript?.text?.slice(0, 40) ?? ""}"`);
+      handleFinalizeRef.current(transcript?.text || "");
     }
   }, [sessionState, transcript]);
 
   // Clean dismiss on error without backspacing user text
   useEffect(() => {
     if (sessionState === "error") {
+      dbg.log(`ERROR: ${sessionError}`);
       stopRecording();
       const timer = setTimeout(() => {
         handleDismissRef.current();
       }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [sessionState, stopRecording]);
+  }, [sessionState, sessionError, stopRecording]);
 
   // Keyboard shortcut listener within overlay window
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
         e.preventDefault();
+        dbg.log("KEY: Escape");
         handleCancelRef.current();
       } else if (e.key === "Enter") {
         e.preventDefault();
+        dbg.log("KEY: Enter");
         handleSubmitRef.current();
       }
     }
-
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
@@ -272,14 +337,17 @@ export default function OverlayWindow() {
     async function registerTauriEvents() {
       try {
         unlistenShow = await listen("overlay:show", () => {
+          dbg.log("EVENT: overlay:show");
           handleStartRecordingRef.current();
         });
 
         unlistenSubmit = await listen("overlay:submit", () => {
+          dbg.log("EVENT: overlay:submit");
           handleSubmitRef.current();
         });
 
         unlistenToggle = await listen("overlay:toggle", () => {
+          dbg.log("EVENT: overlay:toggle");
           if (sessionStateRef.current === "recording") {
             handleSubmitRef.current();
           } else {
@@ -288,6 +356,7 @@ export default function OverlayWindow() {
         });
 
         unlistenHide = await listen("overlay:hide", () => {
+          dbg.log("EVENT: overlay:hide → dismiss");
           handleDismissRef.current();
         });
       } catch {
@@ -306,8 +375,8 @@ export default function OverlayWindow() {
   }, []);
 
   return (
-    <div className="flex h-full w-full items-center justify-center p-3 select-none font-sans">
-      {/* Floating Dynamic Capsule Pill (Wispr Flow / Dynamic Island Style) */}
+    <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-3 select-none font-sans">
+      {/* Floating Dynamic Capsule Pill */}
       <div className="flex w-full max-w-[440px] items-center justify-between rounded-full border border-white/[0.12] bg-[#0E1017]/96 px-4 py-2.5 shadow-[0_20px_50px_rgba(0,0,0,0.85),0_0_20px_rgba(255,99,56,0.15)] backdrop-blur-2xl">
         {/* VoiceFlow Brand Mark / State Orb */}
         <div className="relative flex h-8 w-8 shrink-0 items-center justify-center">
@@ -361,7 +430,7 @@ export default function OverlayWindow() {
               ) : !isConnected ? (
                 <span className="text-amber-400">Connecting engine…</span>
               ) : (
-                <span className="text-slate-300">Streaming live to cursor…</span>
+                <span className="text-slate-300">Listening… (speak now)</span>
               )}
             </span>
           </div>
@@ -399,6 +468,20 @@ export default function OverlayWindow() {
           )}
         </div>
       </div>
+
+      {/* Debug Log Panel — always visible for diagnosis */}
+      {showDebug && debugLogs.length > 0 && (
+        <div className="w-full max-w-[440px] rounded-xl border border-white/[0.08] bg-black/70 px-3 py-2 backdrop-blur-xl">
+          <p className="mb-1 text-[9px] font-semibold uppercase tracking-widest text-slate-500">Debug Log</p>
+          <div className="flex flex-col gap-0.5">
+            {debugLogs.map((line, i) => (
+              <span key={i} className="font-mono text-[9px] text-slate-400 leading-relaxed break-all">
+                {line}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

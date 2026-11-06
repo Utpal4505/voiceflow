@@ -85,6 +85,10 @@ export function useAudio(onChunk?: (chunk: ArrayBuffer, seq: number) => void) {
       const audioCtx = new AudioContext({ sampleRate: 16000 });
       audioContextRef.current = audioCtx;
 
+      if (audioCtx.state === "suspended") {
+        await audioCtx.resume().catch(() => {});
+      }
+
       await audioCtx.audioWorklet.addModule("/pcm-processor.js");
 
       const sourceNode = audioCtx.createMediaStreamSource(stream);
@@ -141,6 +145,9 @@ export function useAudio(onChunk?: (chunk: ArrayBuffer, seq: number) => void) {
     seqRef.current = 0;
 
     const worklet = await ensurePipeline();
+    if (audioContextRef.current && audioContextRef.current.state === "suspended") {
+      await audioContextRef.current.resume().catch(() => {});
+    }
     if (worklet) {
       worklet.port.postMessage({ type: "START" });
       setIsRecording(true);

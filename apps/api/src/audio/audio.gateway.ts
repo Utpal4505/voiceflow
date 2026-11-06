@@ -48,6 +48,7 @@ export class AudioGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(AudioGateway.name);
   private readonly activePartials = new Set<string>();
   private readonly clientSessionMap = new Map<string, string>();
+  private readonly lastPartialTimeMap = new Map<string, number>();
 
   constructor(
     private readonly sessionService: SessionService,
@@ -121,11 +122,20 @@ export class AudioGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     this.sessionService.addChunk(payload.sessionId, buf, payload.seq);
 
-    // Fast cadence: every 6 chunks (~600ms) for responsive live streaming
-    if (payload.seq > 0 && payload.seq % 6 === 0 && !this.activePartials.has(payload.sessionId)) {
+    const lastPartialTime = this.lastPartialTimeMap.get(payload.sessionId) || 0;
+    const now = Date.now();
+
+    // Partial streaming: start after at least 8 chunks (~800ms) and throttle to 1200ms intervals
+    if (
+      payload.seq >= 8 &&
+      now - lastPartialTime >= 1200 &&
+      !this.activePartials.has(payload.sessionId)
+    ) {
       const session = this.sessionService.getSession(payload.sessionId);
       if (session && session.chunks.length > 0) {
         this.activePartials.add(payload.sessionId);
+        this.lastPartialTimeMap.set(payload.sessionId, now);
+
         this.transcriptionService
           .transcribePartial(
             session.id,
@@ -134,15 +144,18 @@ export class AudioGateway implements OnGatewayConnection, OnGatewayDisconnect {
             session.modelId,
           )
           .then((text) => {
-            if (text) {
+            if (text && text.trim().length > 0) {
+              this.logger.log(`[Partial] Session ${session.id}: "${text.trim()}"`);
               client.emit('partial_transcript', {
                 sessionId: session.id,
-                text,
+                text: text.trim(),
                 isFinal: false,
               });
             }
           })
-          .catch(() => {})
+          .catch((err) => {
+            this.logger.warn(`[Partial] Error for ${session.id}: ${err}`);
+          })
           .finally(() => {
             this.activePartials.delete(payload.sessionId);
           });
@@ -155,14 +168,21 @@ export class AudioGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: SessionActionPayload,
   ): Promise<void> {
+    this.logger.log(`[SessionStop] Requested for ${payload.sessionId}`);
+    this.lastPartialTimeMap.delete(payload.sessionId);
+
     // Immediately stop and retrieve session to prevent concurrent duplicate finalizations
     const session = this.sessionService.stopSession(payload.sessionId);
-    if (!session) return;
+    if (!session) {
+      this.logger.warn(`[SessionStop] No session found for ${payload.sessionId}`);
+      return;
+    }
 
     this.activePartials.delete(payload.sessionId);
     this.transcriptionService.cancelActivePartials(payload.sessionId);
 
     try {
+      this.logger.log(`[Finalize] Processing final audio (${session.chunks.length} chunks)...`);
       const text = await this.transcriptionService.transcribeFinal(
         session.id,
         session.chunks,
@@ -170,6 +190,7 @@ export class AudioGateway implements OnGatewayConnection, OnGatewayDisconnect {
         session.modelId,
       );
 
+      this.logger.log(`[Finalize] Done for ${session.id}: "${text}"`);
       client.emit('final_transcript', {
         sessionId: session.id,
         text,
@@ -186,6 +207,7 @@ export class AudioGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
     } finally {
       this.activePartials.delete(payload.sessionId);
+      this.lastPartialTimeMap.delete(payload.sessionId);
     }
   }
 

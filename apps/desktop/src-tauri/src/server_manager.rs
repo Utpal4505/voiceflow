@@ -165,6 +165,19 @@ pub fn start_server_if_needed() -> Option<Child> {
         cmd.arg(&script);
         cmd.current_dir(&workdir);
 
+        let log_path = workdir.join("voiceflow-server.log");
+        println!("[ServerManager] Redirecting API logs to: {:?}", log_path);
+        if let Ok(log_file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&log_path)
+        {
+            if let Ok(err_file) = log_file.try_clone() {
+                cmd.stdout(log_file);
+                cmd.stderr(err_file);
+            }
+        }
+
         #[cfg(target_os = "windows")]
         cmd.creation_flags(CREATE_NO_WINDOW);
 

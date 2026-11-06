@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect } from "react";
+import ModelManager from "../components/models/ModelManager";
 import WaveformBars from "../components/overlay/WaveformBars";
 import { useAudio } from "../hooks/useAudio";
 import { useWebSocket } from "../hooks/useWebSocket";
@@ -13,7 +14,16 @@ export default function MainWindow() {
     initDeviceListener,
   } = useSettingsStore();
 
-  const { isConnected, status: wsStatus } = useWebSocket();
+  const {
+    isConnected,
+    status: wsStatus,
+    models,
+    downloadProgressMap,
+    downloadModel,
+    deleteModel,
+    setActiveModel,
+  } = useWebSocket();
+
   const { isRecording, volume, isSilent, error, startRecording, stopRecording } =
     useAudio();
 
@@ -68,7 +78,17 @@ export default function MainWindow() {
       </header>
 
       <main className="flex-1 overflow-y-auto p-8">
-        <div className="mx-auto max-w-xl flex flex-col gap-6">
+        <div className="mx-auto max-w-2xl flex flex-col gap-6">
+          {/* Module 08: Model Manager Component */}
+          <ModelManager
+            models={models}
+            downloadProgressMap={downloadProgressMap}
+            onDownload={downloadModel}
+            onDelete={deleteModel}
+            onSetActive={setActiveModel}
+          />
+
+          {/* Microphone Settings */}
           <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 p-6 flex flex-col gap-4">
             <div>
               <h2 className="text-sm font-semibold text-zinc-200">
@@ -139,24 +159,8 @@ export default function MainWindow() {
             </div>
           </section>
 
-          <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 p-6 flex flex-col gap-3">
-            <h2 className="text-sm font-semibold text-zinc-200">
-              Real-time Engine Transport
-            </h2>
-            <div className="grid grid-cols-2 gap-4 text-xs">
-              <div className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-3">
-                <span className="text-zinc-500">Transport:</span>
-                <p className="font-mono text-zinc-200 mt-1">WebSocket (Socket.IO)</p>
-              </div>
-              <div className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-3">
-                <span className="text-zinc-500">Audio Stream:</span>
-                <p className="font-mono text-zinc-200 mt-1">16kHz Int16 Mono (500ms chunks)</p>
-              </div>
-            </div>
-          </section>
-
-          <footer className="text-center text-xs text-zinc-600">
-            Module 04 — Real-time Communication (WebSocket) ✓
+          <footer className="text-center text-xs text-zinc-600 pb-6">
+            Module 08 — Model Manager with Download, Install & Switch ✓
           </footer>
         </div>
       </main>

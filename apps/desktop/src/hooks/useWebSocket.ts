@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
-import { SessionState } from "@voiceflow/contracts";
+import { SessionState, ModelInfo, WhisperModelId } from "@voiceflow/contracts";
 
 export type ConnectionStatus = "connected" | "connecting" | "disconnected" | "error";
 
@@ -10,11 +10,20 @@ export interface TranscriptData {
   isFinal: boolean;
 }
 
+export interface DownloadProgressPayload {
+  modelId: WhisperModelId;
+  progress: number;
+  downloaded: number;
+  total: number;
+}
+
 export function useWebSocket(serverUrl = "http://localhost:3001") {
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
   const [sessionState, setSessionState] = useState<SessionState>("idle");
   const [transcript, setTranscript] = useState<TranscriptData | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
+  const [models, setModels] = useState<ModelInfo[]>([]);
+  const [downloadProgressMap, setDownloadProgressMap] = useState<Record<string, number>>({});
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
@@ -30,6 +39,7 @@ export function useWebSocket(serverUrl = "http://localhost:3001") {
 
     socket.on("connect", () => {
       setStatus("connected");
+      socket.emit("get_models");
     });
 
     socket.on("disconnect", () => {
@@ -62,6 +72,25 @@ export function useWebSocket(serverUrl = "http://localhost:3001") {
     socket.on("session_cancelled", () => {
       setSessionState("idle");
       setTranscript(null);
+    });
+
+    socket.on("models_updated", (updatedModels: ModelInfo[]) => {
+      setModels(updatedModels);
+    });
+
+    socket.on("model_download_progress", (data: DownloadProgressPayload) => {
+      setDownloadProgressMap((prev) => ({
+        ...prev,
+        [data.modelId]: data.progress,
+      }));
+    });
+
+    socket.on("model_download_complete", (data: { modelId: string }) => {
+      setDownloadProgressMap((prev) => {
+        const next = { ...prev };
+        delete next[data.modelId];
+        return next;
+      });
     });
 
     return () => {
@@ -111,15 +140,39 @@ export function useWebSocket(serverUrl = "http://localhost:3001") {
     }
   }, []);
 
+  const downloadModel = useCallback((modelId: WhisperModelId) => {
+    if (socketRef.current?.connected) {
+      setDownloadProgressMap((prev) => ({ ...prev, [modelId]: 0 }));
+      socketRef.current.emit("download_model", { modelId });
+    }
+  }, []);
+
+  const deleteModel = useCallback((modelId: WhisperModelId) => {
+    if (socketRef.current?.connected) {
+      socketRef.current.emit("delete_model", { modelId });
+    }
+  }, []);
+
+  const setActiveModel = useCallback((modelId: WhisperModelId) => {
+    if (socketRef.current?.connected) {
+      socketRef.current.emit("set_active_model", { modelId });
+    }
+  }, []);
+
   return {
     status,
     isConnected: status === "connected",
     sessionState,
     transcript,
     sessionError,
+    models,
+    downloadProgressMap,
     startSession,
     sendAudioChunk,
     stopSession,
     cancelSession,
+    downloadModel,
+    deleteModel,
+    setActiveModel,
   };
 }

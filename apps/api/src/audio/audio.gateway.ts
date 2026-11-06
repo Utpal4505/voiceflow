@@ -11,10 +11,12 @@ import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { SessionService } from '../session/session.service.js';
 import { TranscriptionService } from '../transcription/transcription.service.js';
+import { ModelsService } from '../models/models.service.js';
+import { WhisperModelId } from '@voiceflow/contracts';
 
 interface SessionStartPayload {
   sessionId: string;
-  modelId?: string;
+  modelId?: WhisperModelId;
   sampleRate?: number;
 }
 
@@ -26,6 +28,10 @@ interface AudioChunkPayload {
 
 interface SessionActionPayload {
   sessionId: string;
+}
+
+interface ModelActionPayload {
+  modelId: WhisperModelId;
 }
 
 @WebSocketGateway({
@@ -43,10 +49,12 @@ export class AudioGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     private readonly sessionService: SessionService,
     private readonly transcriptionService: TranscriptionService,
+    private readonly modelsService: ModelsService,
   ) {}
 
   handleConnection(client: Socket): void {
     this.logger.log(`Desktop client connected: ${client.id}`);
+    client.emit('models_updated', this.modelsService.getModels());
   }
 
   handleDisconnect(client: Socket): void {
@@ -58,15 +66,18 @@ export class AudioGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: SessionStartPayload,
   ): void {
+    const activeModel = payload.modelId || this.modelsService.getActiveModelId();
+
     const session = this.sessionService.startSession(
       payload.sessionId,
-      payload.modelId,
+      activeModel,
       payload.sampleRate,
     );
 
     client.emit('session_started', {
       sessionId: session.id,
       timestamp: session.startTime,
+      modelId: activeModel,
     });
   }
 
@@ -81,7 +92,6 @@ export class AudioGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     this.sessionService.addChunk(payload.sessionId, buf, payload.seq);
 
-    // Run partial recognition every 4 chunks (~2s)
     if (payload.seq > 0 && payload.seq % 4 === 0) {
       const session = this.sessionService.getSession(payload.sessionId);
       if (session && session.chunks.length > 0) {
@@ -144,5 +154,55 @@ export class AudioGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.transcriptionService.cancel(payload.sessionId);
     this.sessionService.cancelSession(payload.sessionId);
     client.emit('session_cancelled', { sessionId: payload.sessionId });
+  }
+
+  // Model Management Endpoints
+  @SubscribeMessage('get_models')
+  handleGetModels(@ConnectedSocket() client: Socket): void {
+    client.emit('models_updated', this.modelsService.getModels());
+  }
+
+  @SubscribeMessage('set_active_model')
+  handleSetActiveModel(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: ModelActionPayload,
+  ): void {
+    this.modelsService.setActiveModel(payload.modelId);
+    this.server.emit('models_updated', this.modelsService.getModels());
+  }
+
+  @SubscribeMessage('delete_model')
+  async handleDeleteModel(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: ModelActionPayload,
+  ): Promise<void> {
+    await this.modelsService.deleteModel(payload.modelId);
+    this.server.emit('models_updated', this.modelsService.getModels());
+  }
+
+  @SubscribeMessage('download_model')
+  async handleDownloadModel(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: ModelActionPayload,
+  ): Promise<void> {
+    try {
+      await this.modelsService.downloadModel(payload.modelId, (progress, downloaded, total) => {
+        client.emit('model_download_progress', {
+          modelId: payload.modelId,
+          progress,
+          downloaded,
+          total,
+        });
+      });
+
+      this.server.emit('model_download_complete', { modelId: payload.modelId });
+      this.server.emit('models_updated', this.modelsService.getModels());
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      client.emit('model_download_error', {
+        modelId: payload.modelId,
+        error: msg,
+      });
+    }
   }
 }

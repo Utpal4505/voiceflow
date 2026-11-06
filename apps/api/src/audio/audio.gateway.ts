@@ -12,6 +12,7 @@ import { Server, Socket } from 'socket.io';
 import { SessionService } from '../session/session.service.js';
 import { TranscriptionService } from '../transcription/transcription.service.js';
 import { ModelsService } from '../models/models.service.js';
+import { HardwareService } from '../transcription/hardware.service.js';
 import { WhisperModelId } from '@voiceflow/contracts';
 
 interface SessionStartPayload {
@@ -45,20 +46,28 @@ export class AudioGateway implements OnGatewayConnection, OnGatewayDisconnect {
   server!: Server;
 
   private readonly logger = new Logger(AudioGateway.name);
+  private readonly activePartials = new Set<string>();
 
   constructor(
     private readonly sessionService: SessionService,
     private readonly transcriptionService: TranscriptionService,
     private readonly modelsService: ModelsService,
+    private readonly hardwareService: HardwareService,
   ) {}
 
   handleConnection(client: Socket): void {
     this.logger.log(`Desktop client connected: ${client.id}`);
     client.emit('models_updated', this.modelsService.getModels());
+    client.emit('hardware_profile', this.hardwareService.getHardwareProfile());
   }
 
   handleDisconnect(client: Socket): void {
     this.logger.log(`Desktop client disconnected: ${client.id}`);
+  }
+
+  @SubscribeMessage('get_hardware_profile')
+  handleGetHardwareProfile(@ConnectedSocket() client: Socket): void {
+    client.emit('hardware_profile', this.hardwareService.getHardwareProfile());
   }
 
   @SubscribeMessage('session_start')
@@ -92,23 +101,30 @@ export class AudioGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     this.sessionService.addChunk(payload.sessionId, buf, payload.seq);
 
-    if (payload.seq > 0 && payload.seq % 4 === 0) {
+    if (payload.seq > 0 && payload.seq % 20 === 0 && !this.activePartials.has(payload.sessionId)) {
       const session = this.sessionService.getSession(payload.sessionId);
       if (session && session.chunks.length > 0) {
-        const text = await this.transcriptionService.transcribePartial(
-          session.id,
-          session.chunks,
-          session.sampleRate,
-          session.modelId,
-        );
-
-        if (text) {
-          client.emit('partial_transcript', {
-            sessionId: session.id,
-            text,
-            isFinal: false,
+        this.activePartials.add(payload.sessionId);
+        this.transcriptionService
+          .transcribePartial(
+            session.id,
+            session.chunks,
+            session.sampleRate,
+            session.modelId,
+          )
+          .then((text) => {
+            if (text) {
+              client.emit('partial_transcript', {
+                sessionId: session.id,
+                text,
+                isFinal: false,
+              });
+            }
+          })
+          .catch(() => {})
+          .finally(() => {
+            this.activePartials.delete(payload.sessionId);
           });
-        }
       }
     }
   }
@@ -142,6 +158,7 @@ export class AudioGateway implements OnGatewayConnection, OnGatewayDisconnect {
         error: msg,
       });
     } finally {
+      this.activePartials.delete(payload.sessionId);
       this.sessionService.stopSession(payload.sessionId);
     }
   }
@@ -151,6 +168,7 @@ export class AudioGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: SessionActionPayload,
   ): void {
+    this.activePartials.delete(payload.sessionId);
     this.transcriptionService.cancel(payload.sessionId);
     this.sessionService.cancelSession(payload.sessionId);
     client.emit('session_cancelled', { sessionId: payload.sessionId });

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { WhisperModelIdSchema } from './models';
+import { WhisperModelIdSchema } from './models.js';
 
 export const SettingsSchema = z.object({
   globalShortcut: z.string().default('CmdOrCtrl+Space'),

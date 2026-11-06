@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useCallback } from "react";
 import MicIcon from "../components/overlay/MicIcon";
 import WaveformBars from "../components/overlay/WaveformBars";
@@ -7,7 +8,6 @@ import { useWebSocket } from "../hooks/useWebSocket";
 import { useSettingsStore } from "../stores/settingsStore";
 
 const MAX_RECORDING_MS = 180_000;
-const MAX_SILENCE_CHUNKS = 60;
 
 export default function OverlayWindow() {
   const currentSessionIdRef = useRef<string | null>(null);
@@ -26,6 +26,9 @@ export default function OverlayWindow() {
     cancelSession,
   } = useWebSocket();
 
+  const sessionStateRef = useRef(sessionState);
+  sessionStateRef.current = sessionState;
+
   const handleAudioChunk = useCallback(
     (chunk: ArrayBuffer, seq: number) => {
       if (currentSessionIdRef.current && isConnected) {
@@ -35,23 +38,8 @@ export default function OverlayWindow() {
     [isConnected, sendAudioChunk]
   );
 
-  const { isRecording, volume, isSilent, error: audioError, startRecording, stopRecording } =
-    useAudio((chunk, seq) => {
-      if (volume < 0.015) {
-        silenceCountRef.current += 1;
-        if (silenceCountRef.current >= MAX_SILENCE_CHUNKS) {
-          handleClose();
-        }
-      } else {
-        silenceCountRef.current = 0;
-      }
-
-      handleAudioChunk(chunk, seq);
-
-      if (Date.now() - startTimeRef.current > MAX_RECORDING_MS) {
-        handleSubmit();
-      }
-    });
+  const handleAudioChunkRef = useRef(handleAudioChunk);
+  handleAudioChunkRef.current = handleAudioChunk;
 
   const handleClose = useCallback(() => {
     if (currentSessionIdRef.current) {
@@ -60,15 +48,11 @@ export default function OverlayWindow() {
     }
     stopRecording();
     hasInsertedRef.current = false;
-    invoke("hide_overlay");
-  }, [cancelSession, stopRecording]);
+    invoke("hide_overlay").catch(() => {});
+  }, [cancelSession]);
 
-  const handleSubmit = useCallback(() => {
-    if (sessionState === "recording" && currentSessionIdRef.current) {
-      stopSession(currentSessionIdRef.current);
-      stopRecording();
-    }
-  }, [sessionState, stopSession, stopRecording]);
+  const handleCloseRef = useRef(handleClose);
+  handleCloseRef.current = handleClose;
 
   const handleInsert = useCallback(
     async (textToInsert: string) => {
@@ -78,11 +62,37 @@ export default function OverlayWindow() {
       try {
         await invoke("insert_text", { text: textToInsert });
       } catch {
-        handleClose();
+        handleCloseRef.current();
       }
     },
-    [handleClose]
+    []
   );
+
+  const handleSubmit = useCallback(() => {
+    if (sessionStateRef.current === "recording" && currentSessionIdRef.current) {
+      stopSession(currentSessionIdRef.current);
+      stopRecording();
+    } else if (sessionStateRef.current === "done" && transcript?.text) {
+      handleInsert(transcript.text);
+    }
+  }, [stopSession, transcript, handleInsert]);
+
+  const handleSubmitRef = useRef(handleSubmit);
+  handleSubmitRef.current = handleSubmit;
+
+  const onChunkCallback = useCallback((chunk: ArrayBuffer, seq: number) => {
+    handleAudioChunkRef.current(chunk, seq);
+
+    if (Date.now() - startTimeRef.current > MAX_RECORDING_MS) {
+      handleSubmitRef.current();
+    }
+  }, []);
+
+  const { isRecording, volume, isSilent, error: audioError, startRecording, stopRecording } =
+    useAudio(onChunkCallback);
+
+  const volumeRef = useRef(volume);
+  volumeRef.current = volume;
 
   const { selectedDeviceId, availableDevices, initDeviceListener } =
     useSettingsStore();
@@ -98,33 +108,88 @@ export default function OverlayWindow() {
     startRecording();
   }, [startSession, startRecording]);
 
-  useEffect(() => {
-    if (sessionState === "done" && transcript?.text && !hasInsertedRef.current) {
-      const timer = setTimeout(() => {
-        handleInsert(transcript.text);
-      }, 400);
-      return () => clearTimeout(timer);
-    }
-  }, [sessionState, transcript, handleInsert]);
+  const handleStartRecordingRef = useRef(handleStartRecording);
+  handleStartRecordingRef.current = handleStartRecording;
 
+  // Insert transcript when done
+  useEffect(() => {
+    if (sessionState === "done") {
+      if (transcript?.text && !hasInsertedRef.current) {
+        const timer = setTimeout(() => {
+          handleInsert(transcript.text);
+        }, 300);
+        return () => clearTimeout(timer);
+      } else if (!transcript?.text) {
+        const timer = setTimeout(() => {
+          handleClose();
+        }, 1200);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [sessionState, transcript, handleInsert, handleClose]);
+
+  // Audio device change listener
   useEffect(() => {
     const unlisten = initDeviceListener();
-    handleStartRecording();
+    return () => unlisten();
+  }, [initDeviceListener]);
 
+  // Keyboard shortcut listener within overlay window
+  useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
-        handleClose();
-      } else if (e.key === "Enter" && sessionState === "recording") {
-        handleSubmit();
+        handleCloseRef.current();
+      } else if (e.key === "Enter") {
+        handleSubmitRef.current();
       }
     }
 
     window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Tauri global overlay event listeners (Ctrl+Space triggers)
+  useEffect(() => {
+    let unlistenShow: (() => void) | undefined;
+    let unlistenToggle: (() => void) | undefined;
+    let unlistenSubmit: (() => void) | undefined;
+    let unlistenHide: (() => void) | undefined;
+
+    async function registerTauriEvents() {
+      try {
+        unlistenShow = await listen("overlay:show", () => {
+          handleStartRecordingRef.current();
+        });
+
+        unlistenSubmit = await listen("overlay:submit", () => {
+          handleSubmitRef.current();
+        });
+
+        unlistenToggle = await listen("overlay:toggle", () => {
+          if (sessionStateRef.current === "recording") {
+            handleSubmitRef.current();
+          } else {
+            handleCloseRef.current();
+          }
+        });
+
+        unlistenHide = await listen("overlay:hide", () => {
+          handleCloseRef.current();
+        });
+      } catch {
+        // Running in plain browser mode outside Tauri
+      }
+    }
+
+    registerTauriEvents();
+
     return () => {
-      unlisten();
-      window.removeEventListener("keydown", handleKeyDown);
+      unlistenShow?.();
+      unlistenSubmit?.();
+      unlistenToggle?.();
+      unlistenHide?.();
     };
-  }, [initDeviceListener, handleStartRecording, handleClose, handleSubmit, sessionState]);
+  }, []);
 
   const activeDeviceLabel =
     availableDevices.find((d) => d.deviceId === selectedDeviceId)?.label ||

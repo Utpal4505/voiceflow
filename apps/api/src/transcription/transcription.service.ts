@@ -2,14 +2,19 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ITranscriptionAdapter } from './adapters/transcription.adapter.js';
 import { WhisperCliAdapter } from './adapters/whisper.adapter.js';
 import { MockTranscriptionAdapter } from './adapters/mock.adapter.js';
+import { HardwareService } from './hardware.service.js';
 
 @Injectable()
 export class TranscriptionService {
   private readonly logger = new Logger(TranscriptionService.name);
-  private readonly whisperAdapter = new WhisperCliAdapter();
+  private readonly whisperAdapter: WhisperCliAdapter;
   private readonly mockAdapter = new MockTranscriptionAdapter();
 
   private readonly processingLocks = new Set<string>();
+
+  constructor(private readonly hardwareService: HardwareService) {
+    this.whisperAdapter = new WhisperCliAdapter(this.hardwareService);
+  }
 
   private async selectAdapter(): Promise<ITranscriptionAdapter> {
     if (await this.whisperAdapter.isAvailable()) {

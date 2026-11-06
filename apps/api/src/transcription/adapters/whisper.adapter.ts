@@ -4,9 +4,12 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { ITranscriptionAdapter, TranscriptionResult } from './transcription.adapter.js';
 import { createWavBuffer } from '../wav.util.js';
+import { HardwareService } from '../hardware.service.js';
 
 export class WhisperCliAdapter implements ITranscriptionAdapter {
   readonly name = 'whisper-cli';
+
+  constructor(private readonly hardwareService?: HardwareService) {}
 
   private getAppDataPath(...subpaths: string[]): string {
     const base =
@@ -23,7 +26,9 @@ export class WhisperCliAdapter implements ITranscriptionAdapter {
       this.getAppDataPath('bin', 'whisper-cli'),
       path.resolve(process.cwd(), 'bin', 'whisper-cli.exe'),
       path.resolve(process.cwd(), 'bin', 'whisper-cli'),
+      path.resolve(process.cwd(), '..', 'bin', 'whisper-cli.exe'),
       path.resolve(process.cwd(), '..', '..', 'bin', 'whisper-cli.exe'),
+      'D:\\whisper.cpp\\build\\bin\\Release\\whisper-cli.exe',
     ];
 
     for (const p of candidatePaths) {
@@ -76,11 +81,32 @@ export class WhisperCliAdapter implements ITranscriptionAdapter {
 
     try {
       const text = await new Promise<string>((resolve, reject) => {
-        const child = spawn(
-          binaryPath,
-          ['-m', modelPath, '-f', tempWav, '--no-timestamps', '-nt'],
-          { stdio: ['ignore', 'pipe', 'pipe'] },
-        );
+        const profile = this.hardwareService?.getHardwareProfile();
+        const threadCount = (profile?.optimalThreads ?? Math.min(8, os.cpus().length || 4)).toString();
+        const args = [
+          '-m', modelPath,
+          '-f', tempWav,
+          '-t', threadCount,
+          '-fa',
+          '-nt',
+          '-np',
+          '-l', 'en',
+          '-tp', '0.0',
+          '-tpi', '0.2',
+          '-nth', '0.45',
+          '-bs', '1',
+          '-sow',
+          '-sns',
+          '--prompt', 'Software engineering, coding, technical dictation in clear English with correct punctuation.',
+        ];
+
+        if (profile?.engineTier === 'gpu-cuda') {
+          args.push('-dev', '0');
+        } else {
+          args.push('-ng');
+        }
+
+        const child = spawn(binaryPath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
 
         let stdout = '';
         let stderr = '';
@@ -92,6 +118,7 @@ export class WhisperCliAdapter implements ITranscriptionAdapter {
           if (code === 0) {
             const cleanText = stdout
               .replace(/\[\d{2}:\d{2}:\d{2}\.\d{3}\s*-->\s*\d{2}:\d{2}:\d{2}\.\d{3}\]/g, '')
+              .replace(/\[_BEG_\]/g, '')
               .replace(/\r?\n+/g, ' ')
               .trim();
             resolve(cleanText);

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
-import { SessionState, ModelInfo, WhisperModelId } from "@voiceflow/contracts";
+import { SessionState, ModelInfo, WhisperModelId, HardwareProfile } from "@voiceflow/contracts";
 
 export type ConnectionStatus = "connected" | "connecting" | "disconnected" | "error";
 
@@ -24,6 +24,7 @@ export function useWebSocket(serverUrl = "http://localhost:3001") {
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [downloadProgressMap, setDownloadProgressMap] = useState<Record<string, number>>({});
+  const [hardwareProfile, setHardwareProfile] = useState<HardwareProfile | null>(null);
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
@@ -40,6 +41,7 @@ export function useWebSocket(serverUrl = "http://localhost:3001") {
     socket.on("connect", () => {
       setStatus("connected");
       socket.emit("get_models");
+      socket.emit("get_hardware_profile");
     });
 
     socket.on("disconnect", () => {
@@ -78,6 +80,10 @@ export function useWebSocket(serverUrl = "http://localhost:3001") {
       setModels(updatedModels);
     });
 
+    socket.on("hardware_profile", (profile: HardwareProfile) => {
+      setHardwareProfile(profile);
+    });
+
     socket.on("model_download_progress", (data: DownloadProgressPayload) => {
       setDownloadProgressMap((prev) => ({
         ...prev,
@@ -100,16 +106,19 @@ export function useWebSocket(serverUrl = "http://localhost:3001") {
   }, [serverUrl]);
 
   const startSession = useCallback((sessionId: string, modelId?: string) => {
-    if (socketRef.current?.connected) {
-      setSessionState("recording");
-      setTranscript(null);
-      setSessionError(null);
-      socketRef.current.emit("session_start", {
-        sessionId,
-        modelId,
-        sampleRate: 16000,
-      });
+    if (!socketRef.current?.connected) {
+      setSessionError("VoiceFlow Engine (:3001) is not connected");
+      setSessionState("error");
+      return;
     }
+    setSessionState("recording");
+    setTranscript(null);
+    setSessionError(null);
+    socketRef.current.emit("session_start", {
+      sessionId,
+      modelId,
+      sampleRate: 16000,
+    });
   }, []);
 
   const sendAudioChunk = useCallback(
@@ -167,6 +176,7 @@ export function useWebSocket(serverUrl = "http://localhost:3001") {
     sessionError,
     models,
     downloadProgressMap,
+    hardwareProfile,
     startSession,
     sendAudioChunk,
     stopSession,

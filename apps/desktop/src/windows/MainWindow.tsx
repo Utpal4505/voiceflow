@@ -19,6 +19,7 @@ export default function MainWindow() {
     status: wsStatus,
     models,
     downloadProgressMap,
+    hardwareProfile,
     downloadModel,
     deleteModel,
     setActiveModel,
@@ -56,8 +57,10 @@ export default function MainWindow() {
                 isConnected ? "bg-emerald-500" : "bg-amber-500 animate-pulse"
               }`}
             />
-            <span className="capitalize text-zinc-300">
-              Engine: {isConnected ? "Connected (:3001)" : wsStatus}
+            <span className="text-zinc-300">
+              {isConnected
+                ? hardwareProfile?.statusLabel || "Engine Connected (:3001)"
+                : `Engine: ${wsStatus}`}
             </span>
           </div>
 

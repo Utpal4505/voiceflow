@@ -20,8 +20,13 @@ export function useAudio(onChunk?: (chunk: ArrayBuffer, seq: number) => void) {
   const workletNodeRef = useRef<AudioWorkletNode | null>(null);
   const seqRef = useRef(0);
   const silentChunksCountRef = useRef(0);
+  const onChunkRef = useRef(onChunk);
 
-  const stopRecording = useCallback(() => {
+  useEffect(() => {
+    onChunkRef.current = onChunk;
+  }, [onChunk]);
+
+  const destroyPipeline = useCallback(() => {
     if (workletNodeRef.current) {
       workletNodeRef.current.port.onmessage = null;
       workletNodeRef.current.disconnect();
@@ -45,12 +50,19 @@ export function useAudio(onChunk?: (chunk: ArrayBuffer, seq: number) => void) {
     silentChunksCountRef.current = 0;
   }, []);
 
-  const startRecording = useCallback(async () => {
-    stopRecording();
-    setError(null);
-    setIsSilent(false);
-    silentChunksCountRef.current = 0;
-    seqRef.current = 0;
+  const ensurePipeline = useCallback(async () => {
+    if (
+      audioContextRef.current &&
+      audioContextRef.current.state !== "closed" &&
+      workletNodeRef.current &&
+      mediaStreamRef.current &&
+      mediaStreamRef.current.active
+    ) {
+      if (audioContextRef.current.state === "suspended") {
+        await audioContextRef.current.resume();
+      }
+      return workletNodeRef.current;
+    }
 
     try {
       const constraints: MediaStreamConstraints = {
@@ -94,27 +106,54 @@ export function useAudio(onChunk?: (chunk: ArrayBuffer, seq: number) => void) {
             setIsSilent(false);
           }
 
-          if (onChunk) {
-            onChunk(buffer, seqRef.current++);
+          if (onChunkRef.current) {
+            onChunkRef.current(buffer, seqRef.current++);
           }
         }
       };
 
       sourceNode.connect(workletNode);
-      setIsRecording(true);
+      return workletNode;
     } catch (err: unknown) {
-      stopRecording();
+      destroyPipeline();
       const message =
         err instanceof Error ? err.message : "Failed to access microphone";
       setError(message);
+      return null;
     }
-  }, [selectedDeviceId, onChunk, stopRecording]);
+  }, [selectedDeviceId, destroyPipeline]);
+
+  const stopRecording = useCallback(() => {
+    if (workletNodeRef.current) {
+      workletNodeRef.current.port.postMessage({ type: "STOP" });
+    }
+    setIsRecording(false);
+    setVolume(0);
+    setIsSilent(false);
+    seqRef.current = 0;
+    silentChunksCountRef.current = 0;
+  }, []);
+
+  const startRecording = useCallback(async () => {
+    setError(null);
+    setIsSilent(false);
+    silentChunksCountRef.current = 0;
+    seqRef.current = 0;
+
+    const worklet = await ensurePipeline();
+    if (worklet) {
+      worklet.port.postMessage({ type: "START" });
+      setIsRecording(true);
+    }
+  }, [ensurePipeline]);
 
   useEffect(() => {
+    // Pre-warm the microphone pipeline and circular pre-roll buffer in background
+    ensurePipeline().catch(() => {});
     return () => {
-      stopRecording();
+      destroyPipeline();
     };
-  }, [stopRecording]);
+  }, [ensurePipeline, destroyPipeline]);
 
   return {
     isRecording,

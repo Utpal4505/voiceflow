@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.next/
+build/
+apps/desktop/src-tauri/target/
+.turbo/
+*.db
+*.db-shm
+*.db-wal
+*.log
+.env
+.env.local

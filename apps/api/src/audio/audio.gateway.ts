@@ -124,6 +124,13 @@ export class AudioGateway implements OnGatewayConnection, OnGatewayDisconnect {
         text,
         isFinal: true,
       });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Session finalization failed: ${msg}`);
+      client.emit('session_error', {
+        sessionId: session.id,
+        error: msg,
+      });
     } finally {
       this.sessionService.stopSession(payload.sessionId);
     }

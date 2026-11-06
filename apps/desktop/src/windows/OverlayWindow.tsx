@@ -1,40 +1,78 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useEffect } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import MicIcon from "../components/overlay/MicIcon";
 import WaveformBars from "../components/overlay/WaveformBars";
 import { useAudio } from "../hooks/useAudio";
+import { useWebSocket } from "../hooks/useWebSocket";
 import { useSettingsStore } from "../stores/settingsStore";
 
 export default function OverlayWindow() {
-  const { isRecording, volume, isSilent, error, startRecording, stopRecording } =
-    useAudio((_chunk, seq) => {
-      // Chunk ready for WebSocket transport (Module 04)
-      if (seq % 10 === 0) {
-        // Heartbeat
+  const currentSessionIdRef = useRef<string | null>(null);
+
+  const {
+    status: wsStatus,
+    isConnected,
+    transcript,
+    startSession,
+    sendAudioChunk,
+    stopSession,
+    cancelSession,
+  } = useWebSocket();
+
+  const handleAudioChunk = useCallback(
+    (chunk: ArrayBuffer, seq: number) => {
+      if (currentSessionIdRef.current && isConnected) {
+        sendAudioChunk(currentSessionIdRef.current, seq, chunk);
       }
-    });
+    },
+    [isConnected, sendAudioChunk]
+  );
+
+  const { isRecording, volume, isSilent, error, startRecording, stopRecording } =
+    useAudio(handleAudioChunk);
 
   const { selectedDeviceId, availableDevices, initDeviceListener } =
     useSettingsStore();
 
+  const handleClose = useCallback(() => {
+    if (currentSessionIdRef.current) {
+      cancelSession(currentSessionIdRef.current);
+      currentSessionIdRef.current = null;
+    }
+    stopRecording();
+    invoke("hide_overlay");
+  }, [cancelSession, stopRecording]);
+
+  const handleSubmit = useCallback(() => {
+    if (currentSessionIdRef.current) {
+      stopSession(currentSessionIdRef.current);
+    }
+    stopRecording();
+    // In Module 07, text insertion will occur here
+  }, [stopSession, stopRecording]);
+
   useEffect(() => {
     const unlisten = initDeviceListener();
+    const sessionId = crypto.randomUUID();
+    currentSessionIdRef.current = sessionId;
+
+    startSession(sessionId);
     startRecording();
 
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
-        stopRecording();
-        invoke("hide_overlay");
+        handleClose();
+      } else if (e.key === "Enter") {
+        handleSubmit();
       }
     }
 
     window.addEventListener("keydown", handleKeyDown);
     return () => {
-      stopRecording();
       unlisten();
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [initDeviceListener, startRecording, stopRecording]);
+  }, [initDeviceListener, startSession, startRecording, handleClose, handleSubmit]);
 
   const activeDeviceLabel =
     availableDevices.find((d) => d.deviceId === selectedDeviceId)?.label ||
@@ -57,33 +95,49 @@ export default function OverlayWindow() {
           <WaveformBars volume={volume} isRecording={isRecording} />
           <div className="flex items-center gap-2">
             <span className="truncate text-[11px] text-zinc-400">
-              {isSilent ? (
+              {transcript?.text ? (
+                <span className="text-zinc-100 font-medium">{transcript.text}</span>
+              ) : isSilent ? (
                 <span className="text-amber-400 font-medium">
                   ⚠️ No sound detected — is mic muted?
                 </span>
               ) : error ? (
                 <span className="text-red-400 font-medium truncate">{error}</span>
+              ) : !isConnected ? (
+                <span className="text-amber-400">Connecting to local engine…</span>
               ) : (
-                "Listening… (16kHz PCM active)"
+                "Listening… (Streaming to local engine)"
               )}
             </span>
           </div>
         </div>
 
-        <button
-          onClick={() => {
-            stopRecording();
-            invoke("hide_overlay");
-          }}
-          className="shrink-0 rounded-md bg-zinc-800/80 px-2.5 py-1 text-xs text-zinc-300 transition hover:bg-zinc-700 hover:text-white cursor-pointer active:scale-95"
-        >
-          Cancel
-        </button>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            onClick={handleSubmit}
+            className="rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-indigo-500 cursor-pointer active:scale-95"
+          >
+            Enter ↵
+          </button>
+          <button
+            onClick={handleClose}
+            className="rounded-md bg-zinc-800/80 px-2 py-1 text-xs text-zinc-400 transition hover:bg-zinc-700 hover:text-white cursor-pointer active:scale-95"
+          >
+            Cancel
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center justify-between border-t border-zinc-800/60 pt-2 text-[10px] text-zinc-500">
-        <span className="truncate max-w-[280px]">Mic: {activeDeviceLabel}</span>
-        <span>Esc to close</span>
+        <span className="truncate max-w-[240px]">Mic: {activeDeviceLabel}</span>
+        <div className="flex items-center gap-1.5">
+          <span
+            className={`h-1.5 w-1.5 rounded-full ${
+              isConnected ? "bg-emerald-500" : "bg-amber-500"
+            }`}
+          />
+          <span className="capitalize">{wsStatus}</span>
+        </div>
       </div>
     </div>
   );

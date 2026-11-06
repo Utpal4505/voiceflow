@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useEffect } from "react";
 import WaveformBars from "../components/overlay/WaveformBars";
 import { useAudio } from "../hooks/useAudio";
+import { useWebSocket } from "../hooks/useWebSocket";
 import { useSettingsStore } from "../stores/settingsStore";
 
 export default function MainWindow() {
@@ -12,6 +13,7 @@ export default function MainWindow() {
     initDeviceListener,
   } = useSettingsStore();
 
+  const { isConnected, status: wsStatus } = useWebSocket();
   const { isRecording, volume, isSilent, error, startRecording, stopRecording } =
     useAudio();
 
@@ -39,11 +41,23 @@ export default function MainWindow() {
 
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900 px-3 py-1 text-xs text-zinc-400">
-            <span>Global Activation:</span>
+            <span
+              className={`h-2 w-2 rounded-full ${
+                isConnected ? "bg-emerald-500" : "bg-amber-500 animate-pulse"
+              }`}
+            />
+            <span className="capitalize text-zinc-300">
+              Engine: {isConnected ? "Connected (:3001)" : wsStatus}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900 px-3 py-1 text-xs text-zinc-400">
+            <span>Activation:</span>
             <kbd className="rounded bg-zinc-800 px-2 py-0.5 font-mono text-[11px] text-zinc-200">
               Ctrl + Space
             </kbd>
           </div>
+
           <button
             onClick={handleToggleOverlay}
             className="rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-medium transition hover:bg-indigo-500 active:scale-95 cursor-pointer shadow-md shadow-indigo-600/20"
@@ -72,7 +86,7 @@ export default function MainWindow() {
               <select
                 value={selectedDeviceId}
                 onChange={(e) => setSelectedDeviceId(e.target.value)}
-                className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs text-zinc-200 outline-none transition focus:border-indigo-500"
+                className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs text-zinc-200 outline-none transition focus:border-indigo-500 cursor-pointer"
               >
                 <option value="default">Default System Microphone</option>
                 {availableDevices.map((device) => (
@@ -125,8 +139,24 @@ export default function MainWindow() {
             </div>
           </section>
 
+          <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 p-6 flex flex-col gap-3">
+            <h2 className="text-sm font-semibold text-zinc-200">
+              Real-time Engine Transport
+            </h2>
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-3">
+                <span className="text-zinc-500">Transport:</span>
+                <p className="font-mono text-zinc-200 mt-1">WebSocket (Socket.IO)</p>
+              </div>
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-3">
+                <span className="text-zinc-500">Audio Stream:</span>
+                <p className="font-mono text-zinc-200 mt-1">16kHz Int16 Mono (500ms chunks)</p>
+              </div>
+            </div>
+          </section>
+
           <footer className="text-center text-xs text-zinc-600">
-            Module 03 — Audio Capture & Multi-Mic Quality Assurance ✓
+            Module 04 — Real-time Communication (WebSocket) ✓
           </footer>
         </div>
       </main>

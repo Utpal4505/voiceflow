@@ -1,12 +1,22 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import AudioStudio from "../components/audio/AudioStudio";
 import ModelManager from "../components/models/ModelManager";
-import WaveformBars from "../components/overlay/WaveformBars";
+import HistoryView from "../components/history/HistoryView";
+import VocabularyView from "../components/vocabulary/VocabularyView";
 import { useAudio } from "../hooks/useAudio";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { useSettingsStore } from "../stores/settingsStore";
+import { useHistoryStore } from "../stores/historyStore";
+import { useVocabularyStore } from "../stores/vocabularyStore";
+import VoiceFlowLogo from "../components/common/VoiceFlowLogo";
+import { Mic, Cpu, History, BookOpen, ExternalLink } from "lucide-react";
+
+export type NavTab = "studio" | "models" | "history" | "vocabulary";
 
 export default function MainWindow() {
+  const [activeTab, setActiveTab] = useState<NavTab>("studio");
+
   const {
     selectedDeviceId,
     availableDevices,
@@ -25,6 +35,9 @@ export default function MainWindow() {
     setActiveModel,
   } = useWebSocket();
 
+  const { history } = useHistoryStore();
+  const { terms } = useVocabularyStore();
+
   const { isRecording, volume, isSilent, error, startRecording, stopRecording } =
     useAudio();
 
@@ -37,52 +50,104 @@ export default function MainWindow() {
     await invoke("toggle_overlay");
   }
 
+  const activeModel = models.find((m) => m.active);
+
+  const navItems = [
+    { id: "studio" as NavTab, label: "Audio Studio", icon: Mic },
+    { id: "models" as NavTab, label: "Whisper Models", icon: Cpu },
+    { id: "history" as NavTab, label: "History Log", icon: History, count: history.length },
+    { id: "vocabulary" as NavTab, label: "Vocabulary", icon: BookOpen, count: terms.length },
+  ];
+
   return (
-    <div className="flex h-screen flex-col bg-zinc-950 text-white select-none">
-      <header className="flex items-center justify-between border-b border-zinc-800/80 px-8 py-4">
+    <div className="flex h-screen flex-col bg-[#0F1015] text-slate-100 select-none overflow-hidden font-sans">
+      {/* Top Integrated Desktop Header Navigation */}
+      <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/[0.08] bg-[#14161E] px-6 z-20">
+        {/* Brand Mark */}
         <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 font-bold text-sm shadow-md shadow-indigo-600/30">
-            VF
-          </div>
-          <div>
-            <h1 className="text-base font-semibold leading-tight">VoiceFlow</h1>
-            <p className="text-xs text-zinc-400">Desktop Voice Typing</p>
+          <VoiceFlowLogo className="h-7 w-7 rounded-lg shadow-sm shadow-[#514BFA]/30" />
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold tracking-tight text-white">VoiceFlow</span>
+            <span className="rounded bg-white/[0.06] px-1.5 py-0.5 font-mono text-[9px] text-slate-400">
+              v0.1
+            </span>
           </div>
         </div>
 
+        {/* Center Segmented Navigation Rail */}
+        <nav className="flex items-center gap-1 rounded-xl border border-white/[0.06] bg-[#0E0F14] p-1">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition cursor-pointer active:scale-95 ${
+                  isActive
+                    ? "bg-[#1C1F2A] text-white shadow-sm border border-white/[0.08]"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.03]"
+                }`}
+              >
+                <Icon className={`h-3.5 w-3.5 ${isActive ? "text-[#FF6338]" : "text-slate-400"}`} />
+                <span>{item.label}</span>
+                {item.count !== undefined && item.count > 0 && (
+                  <span className="rounded-full bg-white/[0.08] px-1.5 py-0.2 font-mono text-[9px] text-slate-400">
+                    {item.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Right Hardware Engine Status & Controls */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900 px-3 py-1 text-xs text-zinc-400">
+          {/* Engine Status */}
+          <div className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-[#0E0F14] px-3 py-1 text-xs text-slate-300">
             <span
               className={`h-2 w-2 rounded-full ${
-                isConnected ? "bg-emerald-500" : "bg-amber-500 animate-pulse"
+                isConnected ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" : "bg-amber-400 animate-pulse"
               }`}
             />
-            <span className="text-zinc-300">
+            <span className="text-[11px] font-medium text-slate-300">
               {isConnected
-                ? hardwareProfile?.statusLabel || "Engine Connected (:3001)"
+                ? hardwareProfile?.statusLabel || "AVX2 Engine Ready"
                 : `Engine: ${wsStatus}`}
             </span>
           </div>
 
-          <div className="flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900 px-3 py-1 text-xs text-zinc-400">
-            <span>Activation:</span>
-            <kbd className="rounded bg-zinc-800 px-2 py-0.5 font-mono text-[11px] text-zinc-200">
-              Ctrl + Space
-            </kbd>
-          </div>
-
+          {/* Toggle Overlay Button */}
           <button
             onClick={handleToggleOverlay}
-            className="rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-medium transition hover:bg-indigo-500 active:scale-95 cursor-pointer shadow-md shadow-indigo-600/20"
+            className="flex items-center gap-1.5 rounded-lg bg-[#FF6338] px-3 py-1.5 text-xs font-medium text-white shadow-sm shadow-[#FF6338]/20 transition hover:bg-[#e6552e] cursor-pointer active:scale-95"
           >
-            Toggle Overlay
+            <span>Toggle Overlay</span>
+            <ExternalLink className="h-3 w-3 opacity-80" />
           </button>
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto p-8">
-        <div className="mx-auto max-w-2xl flex flex-col gap-6">
-          {/* Module 08: Model Manager Component */}
+      {/* Main Full-Bleed Content Workspace */}
+      <main className="flex-1 overflow-y-auto px-8 py-6 relative z-10">
+        {activeTab === "studio" && (
+          <AudioStudio
+            selectedDeviceId={selectedDeviceId}
+            availableDevices={availableDevices}
+            onSelectDevice={setSelectedDeviceId}
+            isRecording={isRecording}
+            volume={volume}
+            isSilent={isSilent}
+            error={error}
+            onToggleTest={isRecording ? stopRecording : startRecording}
+            hardwareProfile={hardwareProfile}
+            activeModelName={activeModel?.name}
+            onNavigateHistory={() => setActiveTab("history")}
+          />
+        )}
+
+        {activeTab === "models" && (
           <ModelManager
             models={models}
             downloadProgressMap={downloadProgressMap}
@@ -90,82 +155,11 @@ export default function MainWindow() {
             onDelete={deleteModel}
             onSetActive={setActiveModel}
           />
+        )}
 
-          {/* Microphone Settings */}
-          <section className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 p-6 flex flex-col gap-4">
-            <div>
-              <h2 className="text-sm font-semibold text-zinc-200">
-                Microphone Settings
-              </h2>
-              <p className="text-xs text-zinc-400">
-                Select and verify your preferred recording hardware
-              </p>
-            </div>
+        {activeTab === "history" && <HistoryView />}
 
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-medium text-zinc-300">
-                Active Microphone
-              </label>
-              <select
-                value={selectedDeviceId}
-                onChange={(e) => setSelectedDeviceId(e.target.value)}
-                className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs text-zinc-200 outline-none transition focus:border-indigo-500 cursor-pointer"
-              >
-                <option value="default">Default System Microphone</option>
-                {availableDevices.map((device) => (
-                  <option key={device.deviceId} value={device.deviceId}>
-                    {device.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex flex-col gap-3 rounded-lg border border-zinc-800 bg-zinc-950/60 p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-zinc-300">
-                  Hardware Test (16kHz Quality Pipeline)
-                </span>
-                <button
-                  onClick={isRecording ? stopRecording : startRecording}
-                  className={`rounded-md px-3 py-1 text-xs font-medium transition cursor-pointer active:scale-95 ${
-                    isRecording
-                      ? "bg-red-600/90 hover:bg-red-500 text-white"
-                      : "bg-zinc-800 hover:bg-zinc-700 text-zinc-200"
-                  }`}
-                >
-                  {isRecording ? "Stop Test" : "Test Mic Level"}
-                </button>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <WaveformBars volume={volume} isRecording={isRecording} />
-                <span className="text-xs text-zinc-400">
-                  {isRecording ? (
-                    isSilent ? (
-                      <span className="text-amber-400">
-                        ⚠️ No audio detected — check hardware mute switch
-                      </span>
-                    ) : (
-                      `Input Level: ${Math.round(volume * 100)}%`
-                    )
-                  ) : (
-                    "Click Test Mic Level to verify"
-                  )}
-                </span>
-              </div>
-
-              {error && (
-                <div className="rounded bg-red-950/50 border border-red-800/50 px-3 py-1.5 text-xs text-red-300">
-                  {error}
-                </div>
-              )}
-            </div>
-          </section>
-
-          <footer className="text-center text-xs text-zinc-600 pb-6">
-            Module 08 — Model Manager with Download, Install & Switch ✓
-          </footer>
-        </div>
+        {activeTab === "vocabulary" && <VocabularyView />}
       </main>
     </div>
   );

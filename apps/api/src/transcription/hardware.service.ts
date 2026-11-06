@@ -22,30 +22,33 @@ export class HardwareService {
     const physicalCores = Math.max(2, Math.floor(logicalCores / 2));
     const optimalThreads = Math.max(2, Math.min(logicalCores, 8));
 
-    let hasGpu = false;
-    let gpuName: string | undefined;
-
-    try {
-      // 5000ms timeout accommodates Windows PCIe D3Cold GPU wake-up latency (~2s)
-      const smiOutput = execSync('nvidia-smi --query-gpu=name --format=csv,noheader', {
-        encoding: 'utf-8',
-        stdio: ['ignore', 'pipe', 'ignore'],
-        timeout: 5000,
-      }).trim();
-
-      if (smiOutput) {
-        hasGpu = true;
-        gpuName = smiOutput.split('\n')[0].trim();
-      }
-    } catch {
-      hasGpu = false;
-    }
-
     const hasCudaBinary = [
       path.resolve(process.cwd(), 'bin', 'ggml-cuda.dll'),
       path.resolve(process.cwd(), '..', 'bin', 'ggml-cuda.dll'),
       path.resolve(process.cwd(), '..', '..', 'bin', 'ggml-cuda.dll'),
     ].some((p) => existsSync(p));
+
+    let hasGpu = false;
+    let gpuName: string | undefined;
+
+    // Only query nvidia-smi if CUDA runtime DLLs actually exist.
+    // This avoids waking up the dGPU from D3Cold sleep (which causes a 1-2s system hitch on hybrid laptops).
+    if (hasCudaBinary) {
+      try {
+        const smiOutput = execSync('nvidia-smi --query-gpu=name --format=csv,noheader', {
+          encoding: 'utf-8',
+          stdio: ['ignore', 'pipe', 'ignore'],
+          timeout: 2000,
+        }).trim();
+
+        if (smiOutput) {
+          hasGpu = true;
+          gpuName = smiOutput.split('\n')[0].trim();
+        }
+      } catch {
+        hasGpu = false;
+      }
+    }
 
     let engineTier: 'gpu-cuda' | 'cpu-avx2' | 'cpu-basic';
     let recommendedModelId: WhisperModelId;

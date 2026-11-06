@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "turbo run dev --parallel",
     "build": "turbo run build",
+    "start": "pnpm --filter @voiceflow/api build && pnpm --filter @voiceflow/desktop tauri dev",
     "desktop": "pnpm --filter @voiceflow/desktop dev",
     "api": "pnpm --filter @voiceflow/api dev"
   },

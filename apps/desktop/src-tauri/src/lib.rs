@@ -3,6 +3,7 @@ pub mod insertion;
 pub mod window;
 #[cfg(target_os = "windows")]
 pub mod keyboard_hook;
+pub mod server_manager;
 
 use std::str::FromStr;
 use tauri::{AppHandle, Emitter, Manager};
@@ -19,6 +20,18 @@ fn make_window_non_activating(hwnd: isize) {
     unsafe {
         let ex_style = GetWindowLongPtrW(hwnd as _, GWL_EXSTYLE);
         SetWindowLongPtrW(hwnd as _, GWL_EXSTYLE, ex_style | (WS_EX_NOACTIVATE as isize));
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn show_overlay_non_activating(overlay: &tauri::WebviewWindow) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_SHOWNOACTIVATE};
+    if let Ok(hwnd) = overlay.hwnd() {
+        unsafe {
+            ShowWindow(hwnd.0 as _, SW_SHOWNOACTIVATE);
+        }
+    } else {
+        overlay.show().ok();
     }
 }
 
@@ -41,7 +54,13 @@ fn toggle_overlay(app: AppHandle) {
             #[cfg(target_os = "windows")]
             keyboard_hook::set_hook_active(true);
             overlay.center().ok();
+
+            #[cfg(target_os = "windows")]
+            show_overlay_non_activating(&overlay);
+
+            #[cfg(not(target_os = "windows"))]
             overlay.show().ok();
+
             let _ = overlay.emit("overlay:show", ());
         }
     }
@@ -59,7 +78,13 @@ fn show_overlay(app: AppHandle) {
         #[cfg(target_os = "windows")]
         keyboard_hook::set_hook_active(true);
         overlay.center().ok();
+
+        #[cfg(target_os = "windows")]
+        show_overlay_non_activating(&overlay);
+
+        #[cfg(not(target_os = "windows"))]
         overlay.show().ok();
+
         let _ = overlay.emit("overlay:show", ());
     }
 }
@@ -138,6 +163,15 @@ pub fn run() {
                 .build(),
         )
         .setup(|app| {
+            // Automatically launch background NestJS API server if not already active
+            let maybe_server = server_manager::start_server_if_needed();
+            if let Some(child) = maybe_server {
+                let state = app.state::<AppState>();
+                if let Ok(mut guard) = state.server_process.lock() {
+                    *guard = Some(child);
+                }
+            }
+
             if let Some(overlay) = app.get_webview_window("overlay") {
                 #[cfg(target_os = "windows")]
                 if let Ok(hwnd) = overlay.hwnd() {
@@ -158,6 +192,16 @@ pub fn run() {
             get_active_context,
             insert_text
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|app_handle, event| {
+            if let tauri::RunEvent::Exit = event {
+                let state = app_handle.state::<AppState>();
+                if let Ok(mut guard) = state.server_process.lock() {
+                    if let Some(mut child) = guard.take() {
+                        server_manager::stop_server(&mut child);
+                    }
+                }
+            }
+        });
 }

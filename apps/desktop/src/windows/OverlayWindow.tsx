@@ -1,11 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useCallback } from "react";
-import MicIcon from "../components/overlay/MicIcon";
 import WaveformBars from "../components/overlay/WaveformBars";
 import { useAudio } from "../hooks/useAudio";
 import { useWebSocket } from "../hooks/useWebSocket";
-import { useSettingsStore } from "../stores/settingsStore";
+import { useHistoryStore } from "../stores/historyStore";
+import VoiceFlowLogo from "../components/common/VoiceFlowLogo";
+import { Mic, Check, AlertCircle, Loader2 } from "lucide-react";
 
 const MAX_RECORDING_MS = 180_000;
 
@@ -14,6 +15,8 @@ export default function OverlayWindow() {
   const silenceCountRef = useRef(0);
   const startTimeRef = useRef<number>(0);
   const hasInsertedRef = useRef(false);
+
+  const { addHistoryItem } = useHistoryStore();
 
   const {
     isConnected,
@@ -59,13 +62,20 @@ export default function OverlayWindow() {
       if (hasInsertedRef.current || !textToInsert) return;
       hasInsertedRef.current = true;
 
+      // Add to local history log
+      addHistoryItem({
+        text: textToInsert,
+        timestamp: Date.now(),
+        durationMs: Date.now() - (startTimeRef.current || Date.now()),
+      });
+
       try {
         await invoke("insert_text", { text: textToInsert });
       } catch {
         handleCloseRef.current();
       }
     },
-    []
+    [addHistoryItem]
   );
 
   const handleSubmit = useCallback(() => {
@@ -91,12 +101,6 @@ export default function OverlayWindow() {
   const { isRecording, volume, isSilent, error: audioError, startRecording, stopRecording } =
     useAudio(onChunkCallback);
 
-  const volumeRef = useRef(volume);
-  volumeRef.current = volume;
-
-  const { selectedDeviceId, availableDevices, initDeviceListener } =
-    useSettingsStore();
-
   const handleStartRecording = useCallback(() => {
     const sessionId = crypto.randomUUID();
     currentSessionIdRef.current = sessionId;
@@ -111,28 +115,22 @@ export default function OverlayWindow() {
   const handleStartRecordingRef = useRef(handleStartRecording);
   handleStartRecordingRef.current = handleStartRecording;
 
-  // Insert transcript when done
+  // Auto-insert transcript when done
   useEffect(() => {
     if (sessionState === "done") {
       if (transcript?.text && !hasInsertedRef.current) {
         const timer = setTimeout(() => {
           handleInsert(transcript.text);
-        }, 300);
+        }, 200);
         return () => clearTimeout(timer);
       } else if (!transcript?.text) {
         const timer = setTimeout(() => {
           handleClose();
-        }, 1200);
+        }, 1000);
         return () => clearTimeout(timer);
       }
     }
   }, [sessionState, transcript, handleInsert, handleClose]);
-
-  // Audio device change listener
-  useEffect(() => {
-    const unlisten = initDeviceListener();
-    return () => unlisten();
-  }, [initDeviceListener]);
 
   // Keyboard shortcut listener within overlay window
   useEffect(() => {
@@ -177,7 +175,7 @@ export default function OverlayWindow() {
           handleCloseRef.current();
         });
       } catch {
-        // Running in plain browser mode outside Tauri
+        // Plain browser mode
       }
     }
 
@@ -191,119 +189,109 @@ export default function OverlayWindow() {
     };
   }, []);
 
-  const activeDeviceLabel =
-    availableDevices.find((d) => d.deviceId === selectedDeviceId)?.label ||
-    "Default Microphone";
-
   return (
-    <div className="flex h-full w-full flex-col justify-between rounded-2xl bg-zinc-900/95 p-4 shadow-2xl ring-1 ring-white/10 backdrop-blur-md select-none">
-      <div className="flex items-center gap-3">
-        {/* Status Icon */}
-        <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-600">
-          {sessionState === "recording" && (
-            <span
-              className="absolute -inset-1 rounded-full bg-indigo-500 blur-xs transition-opacity duration-150 animate-pulse"
-              style={{ opacity: Math.max(0.3, volume * 1.5) }}
-            />
-          )}
-
-          {sessionState === "processing" ? (
-            <div className="h-4 w-4 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+    <div className="flex h-full w-full items-center justify-center p-3 select-none font-sans">
+      {/* Floating Dynamic Capsule Pill (Wispr Flow / Dynamic Island Style) */}
+      <div className="flex w-full max-w-[440px] items-center justify-between rounded-full border border-white/[0.12] bg-[#0E1017]/96 px-4 py-2.5 shadow-[0_20px_50px_rgba(0,0,0,0.85),0_0_20px_rgba(255,99,56,0.15)] backdrop-blur-2xl">
+        {/* VoiceFlow Brand Mark / State Orb */}
+        <div className="relative flex h-8 w-8 shrink-0 items-center justify-center">
+          {sessionState === "recording" ? (
+            <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-[#FF6338] shadow-md shadow-[#FF6338]/40">
+              <span
+                className="absolute -inset-1 rounded-full bg-[#FF6338]/50 blur-[3px] transition-opacity duration-150 animate-pulse"
+                style={{ opacity: Math.max(0.3, volume * 1.8) }}
+              />
+              <Mic className="h-3.5 w-3.5 text-white relative z-10" />
+            </div>
+          ) : sessionState === "processing" ? (
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600">
+              <Loader2 className="h-3.5 w-3.5 text-white animate-spin" />
+            </div>
           ) : sessionState === "done" ? (
-            <svg className="h-4 w-4 text-emerald-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-            </svg>
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500">
+              <Check className="h-3.5 w-3.5 text-white stroke-[3]" />
+            </div>
+          ) : sessionState === "error" ? (
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-600">
+              <AlertCircle className="h-3.5 w-3.5 text-white" />
+            </div>
           ) : (
-            <MicIcon className="relative h-4 w-4 text-white" />
+            <VoiceFlowLogo className="h-7 w-7 rounded-lg shadow-sm" />
           )}
         </div>
 
-        {/* Content & Visualizer */}
-        <div className="flex flex-1 flex-col gap-0.5 overflow-hidden">
+        {/* Dynamic Waveform & Live Text Display */}
+        <div className="flex flex-1 items-center gap-3 px-3 overflow-hidden">
           {sessionState === "recording" && (
-            <WaveformBars volume={volume} isRecording={isRecording} />
+            <div className="shrink-0">
+              <WaveformBars volume={volume} isRecording={isRecording} barCount={12} />
+            </div>
           )}
 
-          <div className="flex items-center gap-2">
-            <span className="truncate text-xs text-zinc-300">
+          <div className="flex flex-1 items-center truncate">
+            <span className="truncate text-xs font-medium tracking-tight">
               {sessionState === "processing" ? (
-                <span className="text-indigo-400 font-medium">Finalizing transcription…</span>
+                <span className="text-[#FF6338]">Transcribing with Whisper…</span>
               ) : sessionState === "done" ? (
-                <span className="text-emerald-400 font-medium">
-                  {transcript?.text ? `Inserting: "${transcript.text}"` : "Inserting text…"}
+                <span className="text-emerald-400">
+                  {transcript?.text ? `Inserting: "${transcript.text}"` : "Done!"}
                 </span>
               ) : sessionState === "error" || sessionError || audioError ? (
-                <span className="text-red-400 font-medium truncate">
+                <span className="text-red-400">
                   {sessionError || audioError || "Engine error"}
                 </span>
               ) : transcript?.text ? (
-                <span className="text-zinc-100 font-medium">{transcript.text}</span>
+                <span className="text-white">{transcript.text}</span>
               ) : isSilent ? (
-                <span className="text-amber-400 font-medium">
-                  ⚠️ No sound detected — is mic muted?
-                </span>
+                <span className="text-amber-400">⚠️ No sound — check mic</span>
               ) : !isConnected ? (
-                <span className="text-amber-400">Connecting to engine…</span>
+                <span className="text-amber-400">Connecting engine…</span>
               ) : (
-                <span className="text-zinc-400">Listening… (Speak naturally)</span>
+                <span className="text-slate-300">Listening to voice…</span>
               )}
             </span>
           </div>
         </div>
 
-        {/* Controls */}
+        {/* Minimal Keyboard Shortcuts */}
         <div className="flex items-center gap-1.5 shrink-0">
           {sessionState === "recording" && (
             <>
               <button
                 onClick={handleSubmit}
-                className="rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-indigo-500 cursor-pointer active:scale-95 shadow-sm"
+                className="flex items-center gap-1 rounded-full bg-white/[0.08] hover:bg-white/[0.14] px-2.5 py-1 text-[11px] font-medium text-slate-200 transition cursor-pointer active:scale-95"
+                title="Finish & Insert"
               >
-                Enter ↵
+                <span>Enter</span>
+                <kbd className="font-mono text-[9px] text-slate-400">↵</kbd>
               </button>
               <button
                 onClick={handleClose}
-                className="rounded-md bg-zinc-800/80 px-2 py-1 text-xs text-zinc-400 transition hover:bg-zinc-700 hover:text-white cursor-pointer active:scale-95"
+                className="rounded-full bg-white/[0.04] hover:bg-white/[0.1] px-2 py-1 text-[11px] font-medium text-slate-400 hover:text-white transition cursor-pointer active:scale-95"
+                title="Cancel"
               >
-                Cancel
+                Esc
               </button>
             </>
-          )}
-
-          {sessionState === "processing" && (
-            <span className="text-[11px] text-zinc-500 px-2">Processing…</span>
           )}
 
           {sessionState === "done" && (
             <button
               onClick={() => transcript?.text && handleInsert(transcript.text)}
-              className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-emerald-500 cursor-pointer active:scale-95 shadow-sm"
+              className="rounded-full bg-emerald-500 hover:bg-emerald-600 px-3 py-1 text-[11px] font-medium text-white transition cursor-pointer active:scale-95"
             >
-              Insert Now ↵
+              Insert ↵
             </button>
           )}
 
           {sessionState === "error" && (
             <button
               onClick={handleStartRecording}
-              className="rounded-md bg-red-600/80 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-red-500 cursor-pointer active:scale-95"
+              className="rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-medium text-white transition hover:bg-red-500 cursor-pointer active:scale-95"
             >
               Retry
             </button>
           )}
-        </div>
-      </div>
-
-      {/* Footer Info */}
-      <div className="flex items-center justify-between border-t border-zinc-800/60 pt-2 text-[10px] text-zinc-500">
-        <span className="truncate max-w-[240px]">Mic: {activeDeviceLabel}</span>
-        <div className="flex items-center gap-2">
-          <span className="capitalize text-zinc-400">State: {sessionState}</span>
-          <span
-            className={`h-1.5 w-1.5 rounded-full ${
-              isConnected ? "bg-emerald-500" : "bg-amber-500"
-            }`}
-          />
         </div>
       </div>
     </div>

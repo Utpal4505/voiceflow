@@ -3,6 +3,7 @@ use std::sync::Mutex;
 #[derive(Default)]
 pub struct AppState {
     pub previous_hwnd: Mutex<Option<isize>>,
+    pub server_process: Mutex<Option<std::process::Child>>,
 }
 
 #[cfg(target_os = "windows")]

@@ -17,6 +17,8 @@ export class MockTranscriptionAdapter implements ITranscriptionAdapter {
   async transcribe(
     audioPcm: Buffer,
     sampleRate: number,
+    _modelId?: string,
+    _signal?: AbortSignal,
   ): Promise<TranscriptionResult> {
     const start = Date.now();
     const durationSeconds = audioPcm.byteLength / (sampleRate * 2);

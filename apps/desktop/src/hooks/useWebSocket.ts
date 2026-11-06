@@ -76,6 +76,11 @@ export function useWebSocket(serverUrl = "http://localhost:3001") {
       setTranscript(null);
     });
 
+    socket.on("session_reset_complete", () => {
+      setSessionState("idle");
+      setTranscript(null);
+    });
+
     socket.on("models_updated", (updatedModels: ModelInfo[]) => {
       setModels(updatedModels);
     });
@@ -149,6 +154,15 @@ export function useWebSocket(serverUrl = "http://localhost:3001") {
     }
   }, []);
 
+  const resetSession = useCallback((sessionId: string) => {
+    if (socketRef.current?.connected) {
+      socketRef.current.emit("session_reset", { sessionId });
+    }
+    setSessionState("idle");
+    setTranscript(null);
+    setSessionError(null);
+  }, []);
+
   const downloadModel = useCallback((modelId: WhisperModelId) => {
     if (socketRef.current?.connected) {
       setDownloadProgressMap((prev) => ({ ...prev, [modelId]: 0 }));
@@ -181,6 +195,7 @@ export function useWebSocket(serverUrl = "http://localhost:3001") {
     sendAudioChunk,
     stopSession,
     cancelSession,
+    resetSession,
     downloadModel,
     deleteModel,
     setActiveModel,

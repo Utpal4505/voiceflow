@@ -12,9 +12,10 @@ const MAX_RECORDING_MS = 180_000;
 
 export default function OverlayWindow() {
   const currentSessionIdRef = useRef<string | null>(null);
-  const silenceCountRef = useRef(0);
   const startTimeRef = useRef<number>(0);
-  const hasInsertedRef = useRef(false);
+  const streamedTextRef = useRef<string>("");
+  const reconcileQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const hasFinalizedRef = useRef(false);
 
   const { addHistoryItem } = useHistoryStore();
 
@@ -27,10 +28,50 @@ export default function OverlayWindow() {
     sendAudioChunk,
     stopSession,
     cancelSession,
+    resetSession,
   } = useWebSocket();
 
   const sessionStateRef = useRef(sessionState);
   sessionStateRef.current = sessionState;
+
+  // Stream reconciliation queue to prevent out-of-order typing
+  const queueReconcile = useCallback((targetText: string) => {
+    if (!targetText || targetText.trim().length === 0) return;
+
+    reconcileQueueRef.current = reconcileQueueRef.current
+      .then(async () => {
+        const current = streamedTextRef.current;
+        const next = targetText.trimStart();
+        if (current === next) return;
+
+        let commonPrefixLen = 0;
+        const minLen = Math.min(current.length, next.length);
+        while (
+          commonPrefixLen < minLen &&
+          current[commonPrefixLen] === next[commonPrefixLen]
+        ) {
+          commonPrefixLen++;
+        }
+
+        const backspaces = current.length - commonPrefixLen;
+        const toAppend = next.slice(commonPrefixLen);
+
+        streamedTextRef.current = next;
+
+        if (backspaces > 0 || toAppend.length > 0) {
+          await invoke("reconcile_streamed_text", {
+            backspaces,
+            append: toAppend,
+          });
+        }
+      })
+      .catch((err) => {
+        console.error("Stream reconciliation error:", err);
+      });
+  }, []);
+
+  const queueReconcileRef = useRef(queueReconcile);
+  queueReconcileRef.current = queueReconcile;
 
   const handleAudioChunk = useCallback(
     (chunk: ArrayBuffer, seq: number) => {
@@ -44,48 +85,102 @@ export default function OverlayWindow() {
   const handleAudioChunkRef = useRef(handleAudioChunk);
   handleAudioChunkRef.current = handleAudioChunk;
 
-  const handleClose = useCallback(() => {
-    if (currentSessionIdRef.current) {
-      cancelSession(currentSessionIdRef.current);
+  // Cancel and cleanly erase any streamed draft text
+  const handleCancel = useCallback(async () => {
+    stopRecording();
+    const sessionId = currentSessionIdRef.current;
+    if (sessionId) {
+      cancelSession(sessionId);
+      resetSession(sessionId);
       currentSessionIdRef.current = null;
     }
-    stopRecording();
-    hasInsertedRef.current = false;
-    invoke("hide_overlay").catch(() => {});
-  }, [cancelSession]);
 
-  const handleCloseRef = useRef(handleClose);
-  handleCloseRef.current = handleClose;
+    const charsToErase = streamedTextRef.current.length;
+    streamedTextRef.current = "";
+    hasFinalizedRef.current = false;
 
-  const handleInsert = useCallback(
-    async (textToInsert: string) => {
-      if (hasInsertedRef.current || !textToInsert) return;
-      hasInsertedRef.current = true;
-
-      // Add to local history log
-      addHistoryItem({
-        text: textToInsert,
-        timestamp: Date.now(),
-        durationMs: Date.now() - (startTimeRef.current || Date.now()),
-      });
-
+    if (charsToErase > 0) {
       try {
-        await invoke("insert_text", { text: textToInsert });
+        await invoke("cancel_streamed_text", { total_chars: charsToErase });
       } catch {
-        handleCloseRef.current();
+        // ignore
       }
+    }
+
+    invoke("hide_overlay").catch(() => {});
+  }, [cancelSession, resetSession]);
+
+  const handleCancelRef = useRef(handleCancel);
+  handleCancelRef.current = handleCancel;
+
+  // Dismiss overlay and reset state without erasing streamed text
+  const handleDismiss = useCallback(() => {
+    stopRecording();
+    const sessionId = currentSessionIdRef.current;
+    if (sessionId) {
+      cancelSession(sessionId);
+      resetSession(sessionId);
+      currentSessionIdRef.current = null;
+    }
+    streamedTextRef.current = "";
+    hasFinalizedRef.current = false;
+    invoke("hide_overlay").catch(() => {});
+  }, [cancelSession, resetSession]);
+
+  const handleDismissRef = useRef(handleDismiss);
+  handleDismissRef.current = handleDismiss;
+
+  // Accept and finalize dictation
+  const handleFinalize = useCallback(
+    async (finalText: string) => {
+      if (hasFinalizedRef.current) return;
+      hasFinalizedRef.current = true;
+
+      stopRecording();
+
+      // Reconcile any remaining difference with final transcript
+      if (finalText && finalText.trim().length > 0) {
+        queueReconcileRef.current(finalText);
+      }
+
+      await reconcileQueueRef.current;
+
+      const textToRecord = (finalText || streamedTextRef.current).trim();
+      if (textToRecord) {
+        addHistoryItem({
+          text: textToRecord,
+          timestamp: Date.now(),
+          durationMs: Date.now() - (startTimeRef.current || Date.now()),
+        });
+      }
+
+      const sessionId = currentSessionIdRef.current;
+      if (sessionId) {
+        resetSession(sessionId);
+        currentSessionIdRef.current = null;
+      }
+
+      streamedTextRef.current = "";
+
+      invoke("hide_overlay").catch(() => {});
     },
-    [addHistoryItem]
+    [addHistoryItem, resetSession]
   );
+
+  const handleFinalizeRef = useRef(handleFinalize);
+  handleFinalizeRef.current = handleFinalize;
 
   const handleSubmit = useCallback(() => {
     if (sessionStateRef.current === "recording" && currentSessionIdRef.current) {
       stopSession(currentSessionIdRef.current);
       stopRecording();
-    } else if (sessionStateRef.current === "done" && transcript?.text) {
-      handleInsert(transcript.text);
+    } else if (sessionStateRef.current === "processing") {
+      // User pressed Enter while waiting for whisper-cli: fast finalize with already streamed text
+      handleFinalizeRef.current(streamedTextRef.current);
+    } else if (sessionStateRef.current === "done") {
+      handleFinalizeRef.current(transcript?.text || "");
     }
-  }, [stopSession, transcript, handleInsert]);
+  }, [stopSession, transcript]);
 
   const handleSubmitRef = useRef(handleSubmit);
   handleSubmitRef.current = handleSubmit;
@@ -102,11 +197,15 @@ export default function OverlayWindow() {
     useAudio(onChunkCallback);
 
   const handleStartRecording = useCallback(() => {
+    if (sessionStateRef.current === "recording") {
+      return;
+    }
     const sessionId = crypto.randomUUID();
     currentSessionIdRef.current = sessionId;
     startTimeRef.current = Date.now();
-    silenceCountRef.current = 0;
-    hasInsertedRef.current = false;
+    hasFinalizedRef.current = false;
+    streamedTextRef.current = "";
+    reconcileQueueRef.current = Promise.resolve();
 
     startSession(sessionId);
     startRecording();
@@ -115,29 +214,40 @@ export default function OverlayWindow() {
   const handleStartRecordingRef = useRef(handleStartRecording);
   handleStartRecordingRef.current = handleStartRecording;
 
-  // Auto-insert transcript when done
+  // Stream incoming partial transcript live into active text field
+  useEffect(() => {
+    if (sessionState === "recording" && transcript?.text) {
+      queueReconcile(transcript.text);
+    }
+  }, [sessionState, transcript, queueReconcile]);
+
+  // When final transcript arrives, finalize and accept immediately
   useEffect(() => {
     if (sessionState === "done") {
-      if (transcript?.text && !hasInsertedRef.current) {
-        const timer = setTimeout(() => {
-          handleInsert(transcript.text);
-        }, 200);
-        return () => clearTimeout(timer);
-      } else if (!transcript?.text) {
-        const timer = setTimeout(() => {
-          handleClose();
-        }, 1000);
-        return () => clearTimeout(timer);
-      }
+      const finalText = transcript?.text || "";
+      handleFinalizeRef.current(finalText);
     }
-  }, [sessionState, transcript, handleInsert, handleClose]);
+  }, [sessionState, transcript]);
+
+  // Clean dismiss on error without backspacing user text
+  useEffect(() => {
+    if (sessionState === "error") {
+      stopRecording();
+      const timer = setTimeout(() => {
+        handleDismissRef.current();
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [sessionState, stopRecording]);
 
   // Keyboard shortcut listener within overlay window
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
-        handleCloseRef.current();
+        e.preventDefault();
+        handleCancelRef.current();
       } else if (e.key === "Enter") {
+        e.preventDefault();
         handleSubmitRef.current();
       }
     }
@@ -167,12 +277,12 @@ export default function OverlayWindow() {
           if (sessionStateRef.current === "recording") {
             handleSubmitRef.current();
           } else {
-            handleCloseRef.current();
+            handleCancelRef.current();
           }
         });
 
         unlistenHide = await listen("overlay:hide", () => {
-          handleCloseRef.current();
+          handleCancelRef.current();
         });
       } catch {
         // Plain browser mode
@@ -233,9 +343,7 @@ export default function OverlayWindow() {
               {sessionState === "processing" ? (
                 <span className="text-[#FF6338]">Transcribing with Whisper…</span>
               ) : sessionState === "done" ? (
-                <span className="text-emerald-400">
-                  {transcript?.text ? `Inserting: "${transcript.text}"` : "Done!"}
-                </span>
+                <span className="text-emerald-400">Accepted!</span>
               ) : sessionState === "error" || sessionError || audioError ? (
                 <span className="text-red-400">
                   {sessionError || audioError || "Engine error"}
@@ -247,7 +355,7 @@ export default function OverlayWindow() {
               ) : !isConnected ? (
                 <span className="text-amber-400">Connecting engine…</span>
               ) : (
-                <span className="text-slate-300">Listening to voice…</span>
+                <span className="text-slate-300">Streaming live to cursor…</span>
               )}
             </span>
           </div>
@@ -260,28 +368,19 @@ export default function OverlayWindow() {
               <button
                 onClick={handleSubmit}
                 className="flex items-center gap-1 rounded-full bg-white/[0.08] hover:bg-white/[0.14] px-2.5 py-1 text-[11px] font-medium text-slate-200 transition cursor-pointer active:scale-95"
-                title="Finish & Insert"
+                title="Finish & Accept"
               >
                 <span>Enter</span>
                 <kbd className="font-mono text-[9px] text-slate-400">↵</kbd>
               </button>
               <button
-                onClick={handleClose}
+                onClick={handleCancel}
                 className="rounded-full bg-white/[0.04] hover:bg-white/[0.1] px-2 py-1 text-[11px] font-medium text-slate-400 hover:text-white transition cursor-pointer active:scale-95"
-                title="Cancel"
+                title="Cancel & Erase"
               >
                 Esc
               </button>
             </>
-          )}
-
-          {sessionState === "done" && (
-            <button
-              onClick={() => transcript?.text && handleInsert(transcript.text)}
-              className="rounded-full bg-emerald-500 hover:bg-emerald-600 px-3 py-1 text-[11px] font-medium text-white transition cursor-pointer active:scale-95"
-            >
-              Insert ↵
-            </button>
           )}
 
           {sessionState === "error" && (

@@ -7,7 +7,6 @@ pub mod server_manager;
 
 use std::str::FromStr;
 use tauri::{AppHandle, Emitter, Manager};
-use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use window::{get_foreground_window, restore_foreground_window, AppState};
 use context::{get_window_context, AppContext};
@@ -63,7 +62,24 @@ fn toggle_overlay(app: AppHandle) {
 
             let _ = overlay.emit("overlay:show", ());
         }
+    } else {
+        toggle_dictation(app);
     }
+}
+
+#[tauri::command]
+fn toggle_dictation(app: AppHandle) {
+    let state = app.state::<AppState>();
+    let current_hwnd = get_foreground_window();
+    if let Ok(mut guard) = state.previous_hwnd.lock() {
+        *guard = current_hwnd;
+    }
+
+    #[cfg(target_os = "windows")]
+    keyboard_hook::set_hook_active(true);
+
+    let _ = app.emit("dictation:toggle", ());
+    let _ = app.emit("overlay:toggle", ());
 }
 
 #[tauri::command]
@@ -86,6 +102,8 @@ fn show_overlay(app: AppHandle) {
         overlay.show().ok();
 
         let _ = overlay.emit("overlay:show", ());
+    } else {
+        toggle_dictation(app);
     }
 }
 
@@ -103,6 +121,7 @@ fn hide_overlay(app: AppHandle) {
             }
         }
     }
+    let _ = app.emit("dictation:cancel", ());
 }
 
 #[tauri::command]
@@ -113,6 +132,49 @@ fn get_active_context(app: AppHandle) -> AppContext {
         Err(_) => 0,
     };
     get_window_context(hwnd)
+}
+
+#[tauri::command]
+fn stream_text_delta(app: AppHandle, delta: String) {
+    if delta.is_empty() {
+        return;
+    }
+    let state = app.state::<AppState>();
+    if let Ok(guard) = state.previous_hwnd.lock() {
+        if let Some(hwnd) = *guard {
+            restore_foreground_window(hwnd);
+        }
+    }
+    insertion::type_unicode_chars(&delta);
+}
+
+#[tauri::command]
+fn reconcile_streamed_text(app: AppHandle, backspaces: usize, append: String) {
+    let state = app.state::<AppState>();
+    if let Ok(guard) = state.previous_hwnd.lock() {
+        if let Some(hwnd) = *guard {
+            restore_foreground_window(hwnd);
+        }
+    }
+    if backspaces > 0 {
+        insertion::backspace_chars(backspaces);
+    }
+    if !append.is_empty() {
+        insertion::type_unicode_chars(&append);
+    }
+}
+
+#[tauri::command]
+fn cancel_streamed_text(app: AppHandle, total_chars: usize) {
+    let state = app.state::<AppState>();
+    if let Ok(guard) = state.previous_hwnd.lock() {
+        if let Some(hwnd) = *guard {
+            restore_foreground_window(hwnd);
+        }
+    }
+    if total_chars > 0 {
+        insertion::backspace_chars(total_chars);
+    }
 }
 
 #[tauri::command]
@@ -129,16 +191,13 @@ fn insert_text(app: AppHandle, text: String) -> Result<(), String> {
         overlay.hide().ok();
     }
 
-    app.clipboard()
-        .write_text(&text)
-        .map_err(|e| e.to_string())?;
-
     if let Some(hwnd) = previous_hwnd {
         restore_foreground_window(hwnd);
     }
 
-    std::thread::sleep(std::time::Duration::from_millis(60));
-    insertion::simulate_paste();
+    if !text.is_empty() {
+        insertion::type_unicode_chars(&text);
+    }
 
     Ok(())
 }
@@ -178,6 +237,7 @@ pub fn run() {
                     make_window_non_activating(hwnd.0 as isize);
                 }
             }
+
             if let Ok(shortcut) = Shortcut::from_str("CommandOrControl+Space") {
                 let _ = app.global_shortcut().register(shortcut);
             }
@@ -186,11 +246,15 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            toggle_dictation,
+            toggle_overlay,
             show_overlay,
             hide_overlay,
-            toggle_overlay,
             get_active_context,
-            insert_text
+            insert_text,
+            stream_text_delta,
+            reconcile_streamed_text,
+            cancel_streamed_text,
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")

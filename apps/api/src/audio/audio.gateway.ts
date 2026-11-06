@@ -47,6 +47,7 @@ export class AudioGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private readonly logger = new Logger(AudioGateway.name);
   private readonly activePartials = new Set<string>();
+  private readonly clientSessionMap = new Map<string, string>();
 
   constructor(
     private readonly sessionService: SessionService,
@@ -63,6 +64,13 @@ export class AudioGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   handleDisconnect(client: Socket): void {
     this.logger.log(`Desktop client disconnected: ${client.id}`);
+    const activeSessionId = this.clientSessionMap.get(client.id);
+    if (activeSessionId) {
+      this.activePartials.delete(activeSessionId);
+      this.transcriptionService.cancel(activeSessionId);
+      this.sessionService.cancelSession(activeSessionId);
+      this.clientSessionMap.delete(client.id);
+    }
   }
 
   @SubscribeMessage('get_hardware_profile')
@@ -75,6 +83,18 @@ export class AudioGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: SessionStartPayload,
   ): void {
+    // Purge any lingering state from earlier sessions for this client
+    const previousSessionId = this.clientSessionMap.get(client.id);
+    if (previousSessionId && previousSessionId !== payload.sessionId) {
+      this.activePartials.delete(previousSessionId);
+      this.transcriptionService.cancel(previousSessionId);
+      this.sessionService.cancelSession(previousSessionId);
+    }
+    this.clientSessionMap.set(client.id, payload.sessionId);
+
+    this.activePartials.delete(payload.sessionId);
+    this.transcriptionService.cancel(payload.sessionId);
+
     const activeModel = payload.modelId || this.modelsService.getActiveModelId();
 
     const session = this.sessionService.startSession(
@@ -101,7 +121,8 @@ export class AudioGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     this.sessionService.addChunk(payload.sessionId, buf, payload.seq);
 
-    if (payload.seq > 0 && payload.seq % 20 === 0 && !this.activePartials.has(payload.sessionId)) {
+    // Fast cadence: every 6 chunks (~600ms) for responsive live streaming
+    if (payload.seq > 0 && payload.seq % 6 === 0 && !this.activePartials.has(payload.sessionId)) {
       const session = this.sessionService.getSession(payload.sessionId);
       if (session && session.chunks.length > 0) {
         this.activePartials.add(payload.sessionId);
@@ -134,8 +155,12 @@ export class AudioGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: SessionActionPayload,
   ): Promise<void> {
-    const session = this.sessionService.getSession(payload.sessionId);
+    // Immediately stop and retrieve session to prevent concurrent duplicate finalizations
+    const session = this.sessionService.stopSession(payload.sessionId);
     if (!session) return;
+
+    this.activePartials.delete(payload.sessionId);
+    this.transcriptionService.cancelActivePartials(payload.sessionId);
 
     try {
       const text = await this.transcriptionService.transcribeFinal(
@@ -152,15 +177,29 @@ export class AudioGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      this.logger.error(`Session finalization failed: ${msg}`);
-      client.emit('session_error', {
-        sessionId: session.id,
-        error: msg,
-      });
+      if (!msg.toLowerCase().includes('abort')) {
+        this.logger.error(`Session finalization failed: ${msg}`);
+        client.emit('session_error', {
+          sessionId: session.id,
+          error: msg,
+        });
+      }
     } finally {
       this.activePartials.delete(payload.sessionId);
-      this.sessionService.stopSession(payload.sessionId);
     }
+  }
+
+  @SubscribeMessage('session_reset')
+  handleSessionReset(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: SessionActionPayload,
+  ): void {
+    this.clientSessionMap.delete(client.id);
+    this.activePartials.delete(payload.sessionId);
+    this.transcriptionService.cancel(payload.sessionId);
+    this.sessionService.cancelSession(payload.sessionId);
+    this.logger.log(`Session reset: ${payload.sessionId}`);
+    client.emit('session_reset_complete', { sessionId: payload.sessionId });
   }
 
   @SubscribeMessage('session_cancel')
@@ -168,6 +207,7 @@ export class AudioGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: SessionActionPayload,
   ): void {
+    this.clientSessionMap.delete(client.id);
     this.activePartials.delete(payload.sessionId);
     this.transcriptionService.cancel(payload.sessionId);
     this.sessionService.cancelSession(payload.sessionId);

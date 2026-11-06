@@ -4,8 +4,9 @@ interface Props {
   barCount?: number;
 }
 
-const DEFAULT_WEIGHTS = [
-  0.35, 0.55, 0.85, 1.1, 1.35, 1.5, 1.3, 1.05, 0.85, 1.2, 1.4, 0.95, 0.6, 0.4
+// Organic acoustic wave distribution
+const WEIGHTS = [
+  0.4, 0.65, 0.9, 1.15, 1.4, 1.55, 1.35, 1.1, 0.85, 1.25, 1.0, 0.55
 ];
 
 export default function WaveformBars({
@@ -13,26 +14,29 @@ export default function WaveformBars({
   isRecording = false,
   barCount = 12,
 }: Props) {
-  const weights = DEFAULT_WEIGHTS.slice(0, barCount);
+  const weights = WEIGHTS.slice(0, barCount);
 
   return (
-    <div className="flex h-5 items-center gap-1">
+    <div className="flex h-5 items-center gap-[3px]">
       {weights.map((weight, i) => {
+        // Compute dynamic height percentage
         const dynamicHeight = isRecording
-          ? Math.max(16, Math.min(100, Math.round(volume * weight * 120)))
-          : 15;
+          ? Math.max(18, Math.min(100, Math.round(volume * weight * 130)))
+          : 18;
 
         return (
           <div
             key={i}
             className={`w-[2.5px] rounded-full transition-all duration-75 ease-out ${
               isRecording
-                ? "bg-[#FF6338] shadow-[0_0_6px_rgba(255,99,56,0.5)]"
-                : "bg-slate-700/60"
+                ? "bg-gradient-to-t from-[#514BFA] via-[#7772FF] to-[#A5A0FF] shadow-[0_0_6px_rgba(119,114,255,0.7)]"
+                : "bg-slate-700/50"
             }`}
             style={{
               height: `${dynamicHeight}%`,
-              opacity: isRecording ? Math.max(0.4, Math.min(1, volume * 1.6 + 0.35)) : 0.25,
+              opacity: isRecording
+                ? Math.max(0.45, Math.min(1, volume * 1.8 + 0.4))
+                : 0.3,
             }}
           />
         );

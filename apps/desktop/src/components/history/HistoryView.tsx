@@ -62,7 +62,7 @@ export default function HistoryView() {
             placeholder="Search through past transcriptions..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full rounded-lg border border-white/[0.08] bg-[#121319] pl-8 pr-4 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none transition focus:border-[#FF6338]/80"
+            className="w-full rounded-lg border border-white/[0.08] bg-[#121319] pl-8 pr-4 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none transition focus:border-[#514BFA]/80"
           />
         </div>
       </div>

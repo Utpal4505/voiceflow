@@ -1,21 +1,22 @@
 @import "tailwindcss";
 
 :root {
-  --canvas-bg: #0f1015;
-  --surface-card: #16181f;
-  --surface-elevated: #1d202a;
-  --surface-hover: #232734;
-  --border-subtle: rgba(255, 255, 255, 0.07);
-  --border-hover: rgba(255, 255, 255, 0.14);
-  --accent-coral: #ff6338;
-  --accent-indigo: #4f46e5;
+  --canvas-bg: #0b0c12;
+  --surface-card: #12141f;
+  --surface-elevated: #181b2b;
+  --surface-hover: #20243a;
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(255, 255, 255, 0.16);
+  --accent-iris: #514bfa;
+  --accent-iris-glow: #7772ff;
+  --accent-periwinkle: #a5a0ff;
   --accent-emerald: #10b981;
 }
 
 html,
 body,
 #root {
-  background-color: transparent;
+  background-color: transparent !important;
   height: 100%;
   width: 100%;
   margin: 0;
@@ -27,7 +28,7 @@ body,
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom slim native desktop scrollbars */
+/* Custom slim desktop scrollbars */
 ::-webkit-scrollbar {
   width: 5px;
   height: 5px;
@@ -38,20 +39,20 @@ body,
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.12);
   border-radius: 9999px;
   transition: background 0.2s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.24);
 }
 
-/* Linear Titanium UI Surfaces */
+/* VoiceFlow Iris Surface Cards */
 .surface-card {
   background-color: var(--surface-card);
   border: 1px solid var(--border-subtle);
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.25), inset 0 1px 0 0 rgba(255, 255, 255, 0.04);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.35), inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
 }
 
 .surface-card-hover {
@@ -68,7 +69,11 @@ body,
   border: 1px solid var(--border-subtle);
 }
 
-/* Subtle Titanium Ambient Sheen */
-.titanium-glow {
-  background: radial-gradient(circle at 50% 0%, rgba(255, 99, 56, 0.04) 0%, transparent 60%);
+/* VoiceFlow Atmospheric Glow */
+.iris-glow {
+  box-shadow: 0 0 24px -2px rgba(81, 75, 250, 0.4), 0 12px 36px 0 rgba(0, 0, 0, 0.75);
+}
+
+.iris-gradient {
+  background: linear-gradient(135deg, #7772ff 0%, #514bfa 50%, #3730d9 100%);
 }

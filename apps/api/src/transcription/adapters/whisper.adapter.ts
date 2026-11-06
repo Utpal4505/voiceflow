@@ -62,6 +62,7 @@ export class WhisperCliAdapter implements ITranscriptionAdapter {
     audioPcm: Buffer,
     sampleRate: number,
     modelId: string,
+    signal?: AbortSignal,
   ): Promise<TranscriptionResult> {
     const binaryPath = this.findBinaryPath();
     const modelPath = this.findModelPath(modelId);
@@ -79,8 +80,11 @@ export class WhisperCliAdapter implements ITranscriptionAdapter {
     const wavBuffer = createWavBuffer(audioPcm, sampleRate);
     await fs.writeFile(tempWav, wavBuffer);
 
+    const WATCHDOG_TIMEOUT_MS = 10_000;
+
     try {
       const text = await new Promise<string>((resolve, reject) => {
+        let isSettled = false;
         const profile = this.hardwareService?.getHardwareProfile();
         const threadCount = (profile?.optimalThreads ?? Math.min(8, os.cpus().length || 4)).toString();
         const args = [
@@ -111,10 +115,52 @@ export class WhisperCliAdapter implements ITranscriptionAdapter {
         let stdout = '';
         let stderr = '';
 
-        child.stdout.on('data', (d) => (stdout += d.toString()));
-        child.stderr.on('data', (d) => (stderr += d.toString()));
+        const killChild = () => {
+          try {
+            if (!child.killed) {
+              child.kill('SIGKILL');
+            }
+          } catch {
+            // Ignore kill errors
+          }
+        };
+
+        const timeoutId = setTimeout(() => {
+          if (!isSettled) {
+            isSettled = true;
+            killChild();
+            reject(new Error(`whisper-cli timed out after ${WATCHDOG_TIMEOUT_MS}ms`));
+          }
+        }, WATCHDOG_TIMEOUT_MS);
+
+        const onAbort = () => {
+          if (!isSettled) {
+            isSettled = true;
+            clearTimeout(timeoutId);
+            killChild();
+            reject(new Error('Transcription aborted'));
+          }
+        };
+
+        if (signal) {
+          if (signal.aborted) {
+            onAbort();
+            return;
+          }
+          signal.addEventListener('abort', onAbort, { once: true });
+        }
+
+        child.stdout?.on('data', (d) => (stdout += d.toString()));
+        child.stderr?.on('data', (d) => (stderr += d.toString()));
 
         child.on('close', (code) => {
+          if (isSettled) return;
+          isSettled = true;
+          clearTimeout(timeoutId);
+          if (signal) {
+            signal.removeEventListener('abort', onAbort);
+          }
+
           if (code === 0) {
             const cleanText = stdout
               .replace(/\[\d{2}:\d{2}:\d{2}\.\d{3}\s*-->\s*\d{2}:\d{2}:\d{2}\.\d{3}\]/g, '')
@@ -127,7 +173,15 @@ export class WhisperCliAdapter implements ITranscriptionAdapter {
           }
         });
 
-        child.on('error', reject);
+        child.on('error', (err) => {
+          if (isSettled) return;
+          isSettled = true;
+          clearTimeout(timeoutId);
+          if (signal) {
+            signal.removeEventListener('abort', onAbort);
+          }
+          reject(err);
+        });
       });
 
       return {

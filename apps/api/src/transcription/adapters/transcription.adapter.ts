@@ -11,5 +11,6 @@ export interface ITranscriptionAdapter {
     audioPcm: Buffer,
     sampleRate: number,
     modelId: string,
+    signal?: AbortSignal,
   ): Promise<TranscriptionResult>;
 }

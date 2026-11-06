@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::OnceLock;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 use windows_sys::Win32::Foundation::{LPARAM, LRESULT, WPARAM};
 use windows_sys::Win32::System::Threading::{
     GetCurrentThread, GetCurrentThreadId, SetThreadPriority, THREAD_PRIORITY_TIME_CRITICAL,
@@ -98,33 +98,17 @@ unsafe extern "system" fn low_level_keyboard_proc(
                 let vk = kbd.vkCode as u16;
 
                 if vk == VK_RETURN {
-                    // Immediately unhook so standard keyboard handling resumes with 0 delay
-                    if !CURRENT_HOOK.is_null() {
-                        UnhookWindowsHookEx(CURRENT_HOOK);
-                        CURRENT_HOOK = std::ptr::null_mut();
-                    }
-
                     if let Some(app) = APP_HANDLE.get() {
+                        let _ = app.emit("dictation:submit", ());
                         let _ = app.emit("overlay:submit", ());
-                        if let Some(overlay) = app.get_webview_window("overlay") {
-                            let _ = overlay.emit("overlay:submit", ());
-                        }
                     }
                     return 1; // Consume Enter key so it does not type newline into the active editor
                 }
 
                 if vk == VK_ESCAPE {
-                    // Immediately unhook
-                    if !CURRENT_HOOK.is_null() {
-                        UnhookWindowsHookEx(CURRENT_HOOK);
-                        CURRENT_HOOK = std::ptr::null_mut();
-                    }
-
                     if let Some(app) = APP_HANDLE.get() {
+                        let _ = app.emit("dictation:cancel", ());
                         let _ = app.emit("overlay:hide", ());
-                        if let Some(overlay) = app.get_webview_window("overlay") {
-                            let _ = overlay.emit("overlay:hide", ());
-                        }
                     }
                     return 1; // Consume Escape key
                 }

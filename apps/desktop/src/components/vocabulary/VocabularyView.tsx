@@ -41,7 +41,7 @@ export default function VocabularyView() {
             placeholder="Custom term (e.g. Kubernetes, Next.js)"
             value={newTerm}
             onChange={(e) => setNewTerm(e.target.value)}
-            className="flex-1 w-full rounded-lg border border-white/[0.08] bg-[#121319] px-3.5 py-1.5 text-xs text-slate-200 placeholder-slate-500 outline-none transition focus:border-[#FF6338]/80"
+            className="flex-1 w-full rounded-lg border border-white/[0.08] bg-[#121319] px-3.5 py-1.5 text-xs text-slate-200 placeholder-slate-500 outline-none transition focus:border-[#514BFA]/80"
           />
 
           <input
@@ -49,7 +49,7 @@ export default function VocabularyView() {
             placeholder="Auto-replace with (optional)"
             value={newReplacement}
             onChange={(e) => setNewReplacement(e.target.value)}
-            className="w-full sm:w-56 rounded-lg border border-white/[0.08] bg-[#121319] px-3.5 py-1.5 text-xs text-slate-200 placeholder-slate-500 outline-none transition focus:border-[#FF6338]/80"
+            className="w-full sm:w-56 rounded-lg border border-white/[0.08] bg-[#121319] px-3.5 py-1.5 text-xs text-slate-200 placeholder-slate-500 outline-none transition focus:border-[#514BFA]/80"
           />
 
           <select
@@ -65,7 +65,7 @@ export default function VocabularyView() {
 
           <button
             type="submit"
-            className="flex items-center gap-1.5 rounded-lg bg-[#FF6338] px-4 py-1.5 text-xs font-semibold text-white shadow-sm shadow-[#FF6338]/20 transition hover:bg-[#e6552e] cursor-pointer active:scale-95 shrink-0"
+            className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-[#514BFA] to-[#7772FF] px-4 py-1.5 text-xs font-semibold text-white shadow-sm shadow-[#514BFA]/30 transition hover:brightness-110 cursor-pointer active:scale-95 shrink-0"
           >
             <Plus className="h-3.5 w-3.5" />
             <span>Add Term</span>
@@ -111,7 +111,7 @@ export default function VocabularyView() {
                   {item.replacement && (
                     <div className="flex items-center gap-1 text-[11px] text-slate-400">
                       <ArrowRight className="h-2.5 w-2.5 text-slate-500" />
-                      <span className="text-[#FF6338] font-mono">{item.replacement}</span>
+                      <span className="text-[#A5A0FF] font-mono">{item.replacement}</span>
                     </div>
                   )}
                 </div>

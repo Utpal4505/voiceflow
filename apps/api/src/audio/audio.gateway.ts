@@ -10,6 +10,7 @@ import {
 import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { SessionService } from '../session/session.service.js';
+import { TranscriptionService } from '../transcription/transcription.service.js';
 
 interface SessionStartPayload {
   sessionId: string;
@@ -39,7 +40,10 @@ export class AudioGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private readonly logger = new Logger(AudioGateway.name);
 
-  constructor(private readonly sessionService: SessionService) {}
+  constructor(
+    private readonly sessionService: SessionService,
+    private readonly transcriptionService: TranscriptionService,
+  ) {}
 
   handleConnection(client: Socket): void {
     this.logger.log(`Desktop client connected: ${client.id}`);
@@ -67,28 +71,61 @@ export class AudioGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('audio_chunk')
-  handleAudioChunk(
+  async handleAudioChunk(
+    @ConnectedSocket() client: Socket,
     @MessageBody() payload: AudioChunkPayload,
-  ): void {
+  ): Promise<void> {
     const buf = Buffer.isBuffer(payload.buffer)
       ? payload.buffer
       : Buffer.from(payload.buffer);
 
     this.sessionService.addChunk(payload.sessionId, buf, payload.seq);
+
+    // Run partial recognition every 4 chunks (~2s)
+    if (payload.seq > 0 && payload.seq % 4 === 0) {
+      const session = this.sessionService.getSession(payload.sessionId);
+      if (session && session.chunks.length > 0) {
+        const text = await this.transcriptionService.transcribePartial(
+          session.id,
+          session.chunks,
+          session.sampleRate,
+          session.modelId,
+        );
+
+        if (text) {
+          client.emit('partial_transcript', {
+            sessionId: session.id,
+            text,
+            isFinal: false,
+          });
+        }
+      }
+    }
   }
 
   @SubscribeMessage('session_stop')
-  handleSessionStop(
+  async handleSessionStop(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: SessionActionPayload,
-  ): void {
-    const session = this.sessionService.stopSession(payload.sessionId);
-    if (session) {
-      client.emit('session_stopped', {
+  ): Promise<void> {
+    const session = this.sessionService.getSession(payload.sessionId);
+    if (!session) return;
+
+    try {
+      const text = await this.transcriptionService.transcribeFinal(
+        session.id,
+        session.chunks,
+        session.sampleRate,
+        session.modelId,
+      );
+
+      client.emit('final_transcript', {
         sessionId: session.id,
-        totalBytes: session.totalBytes,
-        chunksCount: session.chunks.length,
+        text,
+        isFinal: true,
       });
+    } finally {
+      this.sessionService.stopSession(payload.sessionId);
     }
   }
 
@@ -97,6 +134,7 @@ export class AudioGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: SessionActionPayload,
   ): void {
+    this.transcriptionService.cancel(payload.sessionId);
     this.sessionService.cancelSession(payload.sessionId);
     client.emit('session_cancelled', { sessionId: payload.sessionId });
   }

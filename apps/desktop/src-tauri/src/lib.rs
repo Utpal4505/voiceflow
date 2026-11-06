@@ -113,7 +113,9 @@ fn hide_overlay(app: AppHandle) {
     keyboard_hook::set_hook_active(false);
     if let Some(overlay) = app.get_webview_window("overlay") {
         overlay.hide().ok();
-        let _ = overlay.emit("overlay:hide", ());
+        // NOTE: Do NOT emit overlay:hide here — the frontend triggered hide_overlay itself
+        // and already cleaned up its state. Re-emitting overlay:hide would cause a
+        // double-action loop (finalize → hide_overlay → overlay:hide → cancel/dismiss → erase text).
         let state = app.state::<AppState>();
         if let Ok(guard) = state.previous_hwnd.lock() {
             if let Some(hwnd) = *guard {

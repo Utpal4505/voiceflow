@@ -147,9 +147,11 @@ export function useWebSocket(serverUrl = "http://localhost:3001") {
   }, []);
 
   const cancelSession = useCallback((sessionId: string) => {
+    // Set state optimistically so UI responds immediately
+    setSessionState("idle");
+    setTranscript(null);
+    setSessionError(null);
     if (socketRef.current?.connected) {
-      setSessionState("idle");
-      setTranscript(null);
       socketRef.current.emit("session_cancel", { sessionId });
     }
   }, []);

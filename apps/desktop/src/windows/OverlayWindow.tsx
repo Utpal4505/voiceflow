@@ -28,9 +28,7 @@ export default function OverlayWindow() {
     sendAudioChunk,
     stopSession,
     cancelSession,
-    resetSession,
   } = useWebSocket();
-
   const sessionStateRef = useRef(sessionState);
   sessionStateRef.current = sessionState;
 
@@ -87,11 +85,15 @@ export default function OverlayWindow() {
 
   // Cancel and cleanly erase any streamed draft text
   const handleCancel = useCallback(async () => {
+    if (hasFinalizedRef.current) {
+      // Already done — just hide, don't erase text
+      invoke("hide_overlay").catch(() => {});
+      return;
+    }
     stopRecording();
     const sessionId = currentSessionIdRef.current;
     if (sessionId) {
       cancelSession(sessionId);
-      resetSession(sessionId);
       currentSessionIdRef.current = null;
     }
 
@@ -108,24 +110,25 @@ export default function OverlayWindow() {
     }
 
     invoke("hide_overlay").catch(() => {});
-  }, [cancelSession, resetSession]);
+  }, [cancelSession]);
 
   const handleCancelRef = useRef(handleCancel);
   handleCancelRef.current = handleCancel;
 
   // Dismiss overlay and reset state without erasing streamed text
+  // Only call when NOT already finalized — avoids double-action from hide_overlay re-emit
   const handleDismiss = useCallback(() => {
+    if (hasFinalizedRef.current) return; // already finalized, do nothing
     stopRecording();
     const sessionId = currentSessionIdRef.current;
     if (sessionId) {
       cancelSession(sessionId);
-      resetSession(sessionId);
       currentSessionIdRef.current = null;
     }
     streamedTextRef.current = "";
     hasFinalizedRef.current = false;
     invoke("hide_overlay").catch(() => {});
-  }, [cancelSession, resetSession]);
+  }, [cancelSession]);
 
   const handleDismissRef = useRef(handleDismiss);
   handleDismissRef.current = handleDismiss;
@@ -156,15 +159,18 @@ export default function OverlayWindow() {
 
       const sessionId = currentSessionIdRef.current;
       if (sessionId) {
-        resetSession(sessionId);
+        // Use cancelSession (not resetSession) so we don't trigger a redundant server round-trip
+        cancelSession(sessionId);
         currentSessionIdRef.current = null;
       }
 
       streamedTextRef.current = "";
+      // hasFinalizedRef stays true so overlay:hide re-emission is a no-op
 
+      // Directly call Tauri hide — do NOT emit overlay:hide here (would trigger handleDismiss loop)
       invoke("hide_overlay").catch(() => {});
     },
-    [addHistoryItem, resetSession]
+    [addHistoryItem, cancelSession]
   );
 
   const handleFinalizeRef = useRef(handleFinalize);
@@ -282,7 +288,7 @@ export default function OverlayWindow() {
         });
 
         unlistenHide = await listen("overlay:hide", () => {
-          handleCancelRef.current();
+          handleDismissRef.current();
         });
       } catch {
         // Plain browser mode

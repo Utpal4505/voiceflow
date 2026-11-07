@@ -1,0 +1,78 @@
+name: Release VoiceFlow
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+    paths:
+      - 'package.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9.15.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './apps/desktop/src-tauri -> target'
+
+      - name: Install Monorepo Dependencies
+        run: pnpm install
+
+      - name: Build All Monorepo Packages
+        run: pnpm build
+
+      - name: Build Signed Desktop Application
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: pnpm --filter @voiceflow/desktop tauri build
+
+      - name: Read Current Version
+        id: pkg_version
+        shell: pwsh
+        run: |
+          $pkg = Get-Content package.json | ConvertFrom-Json
+          Write-Output "version=$($pkg.version)" >> $env:GITHUB_OUTPUT
+          Write-Output "tag_name=v$($pkg.version)" >> $env:GITHUB_OUTPUT
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.pkg_version.outputs.tag_name }}
+          name: VoiceFlow v${{ steps.pkg_version.outputs.version }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          files: |
+            apps/desktop/src-tauri/target/release/bundle/nsis/VoiceFlow_*_x64-setup.exe
+            apps/desktop/src-tauri/target/release/bundle/nsis/VoiceFlow_*_x64.nsis.zip
+            apps/desktop/src-tauri/target/release/bundle/nsis/VoiceFlow_*_x64.nsis.zip.sig
+            apps/desktop/src-tauri/target/release/bundle/nsis/latest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

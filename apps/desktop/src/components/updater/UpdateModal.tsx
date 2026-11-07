@@ -31,12 +31,29 @@ export default function UpdateModal({ currentVersion = "v0.1.0", triggerCheckRef
   const downloadedBytesRef = useRef(0);
   const totalBytesRef = useRef(0);
 
+  const UPDATE_CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000; // Check once every 12 hours
+
   const performCheck = useCallback(async (manual = false) => {
+    // If background check, enforce 12-hour throttling
+    if (!manual) {
+      try {
+        const lastCheck = Number(localStorage.getItem("voiceflow_last_update_check") || 0);
+        if (Date.now() - lastCheck < UPDATE_CHECK_INTERVAL_MS) {
+          return;
+        }
+      } catch {
+        // Fall through
+      }
+    }
+
     try {
       setStatus("checking");
       setErrorMessage(null);
 
       const update = await check();
+      try {
+        localStorage.setItem("voiceflow_last_update_check", String(Date.now()));
+      } catch {}
 
       if (update?.available) {
         setAvailableUpdate(update);
@@ -94,9 +111,15 @@ export default function UpdateModal({ currentVersion = "v0.1.0", triggerCheckRef
       performCheck(false);
     }, 4000);
 
+    // Periodic background check once every 12 hours
+    const interval = setInterval(() => {
+      performCheck(false);
+    }, UPDATE_CHECK_INTERVAL_MS);
+
     return () => {
       window.removeEventListener("voiceflow:preview-update", handlePreview);
       clearTimeout(timer);
+      clearInterval(interval);
       unlisten?.();
     };
   }, [performCheck]);

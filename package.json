@@ -9,6 +9,8 @@
     "start": "pnpm --filter @voiceflow/api build && pnpm --filter @voiceflow/desktop tauri dev",
     "package": "turbo run build && pnpm --filter @voiceflow/desktop tauri build",
     "package:debug": "turbo run build && pnpm --filter @voiceflow/desktop tauri build --debug",
+    "release": "node scripts/release.mjs",
+    "release:open": "explorer.exe release",
     "desktop": "pnpm --filter @voiceflow/desktop dev",
     "api": "pnpm --filter @voiceflow/api dev"
   },

@@ -137,13 +137,14 @@ fn show_overlay(app: AppHandle) {
 
 #[tauri::command]
 fn hide_overlay(app: AppHandle) {
-    println!("[Rust Overlay] hide_overlay command called");
-    #[cfg(target_os = "windows")]
-    keyboard_hook::set_hook_active(false);
     if let Some(overlay) = app.get_webview_window("overlay") {
+        if !is_overlay_window_visible(&overlay) {
+            return;
+        }
+        println!("[Rust Overlay] hide_overlay command called");
+        #[cfg(target_os = "windows")]
+        keyboard_hook::set_hook_active(false);
         hide_overlay_window(&overlay);
-        let _ = overlay.emit("overlay:hide", ());
-        let _ = app.emit("overlay:hide", ());
         let state = app.state::<AppState>();
         if let Ok(guard) = state.previous_hwnd.lock() {
             if let Some(hwnd) = *guard {

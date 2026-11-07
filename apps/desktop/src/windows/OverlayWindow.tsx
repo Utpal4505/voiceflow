@@ -37,6 +37,21 @@ export default function OverlayWindow() {
     return () => console.log("[Overlay] Component unmounted");
   }, []);
 
+  const handleAudioChunkRef = useRef<(chunk: ArrayBuffer, seq: number) => void>(() => {});
+  const handleSubmitRef = useRef<() => void>(() => {});
+
+  const onChunkCallback = useCallback((chunk: ArrayBuffer, seq: number) => {
+    handleAudioChunkRef.current(chunk, seq);
+
+    if (Date.now() - startTimeRef.current > MAX_RECORDING_MS) {
+      console.warn("[Overlay] Max recording limit reached, submitting...");
+      handleSubmitRef.current();
+    }
+  }, []);
+
+  const { isRecording, volume, isSilent, error: audioError, startRecording, stopRecording } =
+    useAudio(onChunkCallback);
+
   const handleAudioChunk = useCallback(
     (chunk: ArrayBuffer, seq: number) => {
       if (currentSessionIdRef.current && isConnected) {
@@ -45,12 +60,9 @@ export default function OverlayWindow() {
     },
     [isConnected, sendAudioChunk]
   );
-
-  const handleAudioChunkRef = useRef(handleAudioChunk);
   handleAudioChunkRef.current = handleAudioChunk;
 
-  const handleClose = useCallback(() => {
-    console.log("[Overlay] handleClose called, current session:", currentSessionIdRef.current);
+  const cleanupState = useCallback(() => {
     stopRecording();
     const sessionId = currentSessionIdRef.current;
     if (sessionId) {
@@ -58,10 +70,18 @@ export default function OverlayWindow() {
       currentSessionIdRef.current = null;
     }
     hasInsertedRef.current = false;
+  }, [cancelSession, stopRecording]);
+
+  const cleanupStateRef = useRef(cleanupState);
+  cleanupStateRef.current = cleanupState;
+
+  const handleClose = useCallback(() => {
+    console.log("[Overlay] handleClose called, current session:", currentSessionIdRef.current);
+    cleanupState();
     invoke("hide_overlay")
       .then(() => console.log("[Overlay] hide_overlay invoke succeeded"))
       .catch((err) => console.error("[Overlay] hide_overlay invoke error:", err));
-  }, [cancelSession]);
+  }, [cleanupState]);
 
   const handleCloseRef = useRef(handleClose);
   handleCloseRef.current = handleClose;
@@ -94,13 +114,9 @@ export default function OverlayWindow() {
           currentSessionIdRef.current = null;
         }
         hasInsertedRef.current = false;
-        // Explicit safety fallback to ensure window is hidden
-        invoke("hide_overlay").catch((err) =>
-          console.error("[Overlay] hide_overlay fallback error:", err)
-        );
       }
     },
-    [addHistoryItem, resetSession]
+    [addHistoryItem, resetSession, stopRecording]
   );
 
   const handleSubmit = useCallback(() => {
@@ -113,22 +129,8 @@ export default function OverlayWindow() {
       console.log("[Overlay] In done state, proceeding to insert text immediately");
       handleInsert(transcript.text);
     }
-  }, [stopSession, transcript, handleInsert]);
-
-  const handleSubmitRef = useRef(handleSubmit);
+  }, [stopSession, transcript, handleInsert, stopRecording]);
   handleSubmitRef.current = handleSubmit;
-
-  const onChunkCallback = useCallback((chunk: ArrayBuffer, seq: number) => {
-    handleAudioChunkRef.current(chunk, seq);
-
-    if (Date.now() - startTimeRef.current > MAX_RECORDING_MS) {
-      console.warn("[Overlay] Max recording limit reached, submitting...");
-      handleSubmitRef.current();
-    }
-  }, []);
-
-  const { isRecording, volume, isSilent, error: audioError, startRecording, stopRecording } =
-    useAudio(onChunkCallback);
 
   const handleStartRecording = useCallback(() => {
     const sessionId = crypto.randomUUID();
@@ -208,8 +210,8 @@ export default function OverlayWindow() {
         });
 
         unlistenHide = await listen("overlay:hide", () => {
-          console.log("[Overlay] Event received: overlay:hide");
-          handleCloseRef.current();
+          console.log("[Overlay] Event received: overlay:hide (cleaning up local state)");
+          cleanupStateRef.current();
         });
         console.log("[Overlay] Tauri event listeners successfully attached");
       } catch (err) {

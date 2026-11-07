@@ -385,9 +385,15 @@ export default function MainWindow() {
 
           {/* Check for Updates Button */}
           <button
-            onClick={() => triggerUpdateCheckRef.current?.()}
+            onClick={(e) => {
+              if (e.shiftKey || e.altKey) {
+                window.dispatchEvent(new CustomEvent("voiceflow:preview-update"));
+              } else {
+                triggerUpdateCheckRef.current?.();
+              }
+            }}
             className="hidden lg:flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-[#0E0F14] hover:bg-white/[0.04] px-2.5 py-1 text-xs text-slate-400 hover:text-white transition cursor-pointer"
-            title="Check for VoiceFlow updates"
+            title="Check for updates (Shift+Click to preview update modal)"
           >
             <RefreshCw className="h-3 w-3 text-slate-400" />
             <span className="text-[10px]">Updates</span>

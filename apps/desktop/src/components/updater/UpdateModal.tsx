@@ -70,6 +70,18 @@ export default function UpdateModal({ currentVersion = "v0.1.0", triggerCheckRef
 
   // Listen for tray check-for-updates event and run initial background check
   useEffect(() => {
+    const handlePreview = () => {
+      setAvailableUpdate({
+        version: "0.2.0",
+        body: "• Added Performance Analytics & Hardware Diagnostics\n• Improved Whisper speech recognition latency by 25%\n• Enhanced System Tray and autostart integrations",
+        date: new Date().toISOString(),
+      } as unknown as Update);
+      setStatus("available");
+      setIsOpen(true);
+    };
+
+    window.addEventListener("voiceflow:preview-update", handlePreview);
+
     let unlisten: (() => void) | undefined;
     listen("check-for-updates", () => {
       performCheck(true);
@@ -83,6 +95,7 @@ export default function UpdateModal({ currentVersion = "v0.1.0", triggerCheckRef
     }, 4000);
 
     return () => {
+      window.removeEventListener("voiceflow:preview-update", handlePreview);
       clearTimeout(timer);
       unlisten?.();
     };
@@ -96,6 +109,16 @@ export default function UpdateModal({ currentVersion = "v0.1.0", triggerCheckRef
       setDownloadPercent(0);
       downloadedBytesRef.current = 0;
       totalBytesRef.current = 0;
+
+      // In preview/testing mode, animate simulation
+      if (typeof availableUpdate.downloadAndInstall !== "function") {
+        for (let i = 1; i <= 10; i++) {
+          await new Promise((r) => setTimeout(r, 180));
+          setDownloadPercent(i * 10);
+        }
+        setStatus("ready");
+        return;
+      }
 
       await availableUpdate.downloadAndInstall((event) => {
         switch (event.event) {

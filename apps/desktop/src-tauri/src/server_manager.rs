@@ -32,8 +32,10 @@ fn get_search_roots() -> Vec<PathBuf> {
         if let Some(exe_dir) = exe.parent() {
             let mut curr = exe_dir.to_path_buf();
             roots.push(curr.clone());
+            roots.push(curr.join("resources"));
             while let Some(parent) = curr.parent() {
                 roots.push(parent.to_path_buf());
+                roots.push(parent.join("resources"));
                 curr = parent.to_path_buf();
             }
         }
@@ -49,6 +51,8 @@ fn find_standalone_server() -> Option<PathBuf> {
             root.join("voiceflow-server.exe"),
             root.join("server").join("voiceflow-server.exe"),
             root.join("bin").join("voiceflow-server.exe"),
+            root.join("resources").join("voiceflow-server.exe"),
+            root.join("resources").join("bin").join("voiceflow-server.exe"),
         ];
         for c in &candidates {
             if c.exists() {

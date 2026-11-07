@@ -4,6 +4,7 @@ pub mod window;
 #[cfg(target_os = "windows")]
 pub mod keyboard_hook;
 pub mod server_manager;
+pub mod tray;
 
 use std::str::FromStr;
 use tauri::{AppHandle, Emitter, Manager};
@@ -11,6 +12,10 @@ use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use window::{get_foreground_window, restore_foreground_window, AppState};
 use context::{get_window_context, AppContext};
+
+pub(crate) fn trigger_toggle_overlay(app: AppHandle) {
+    toggle_overlay(app);
+}
 
 #[cfg(target_os = "windows")]
 fn make_window_non_activating(hwnd: isize) {
@@ -225,6 +230,11 @@ pub fn run() {
                 }
             }
 
+            // Initialize System Tray
+            if let Err(e) = tray::create_tray(app.handle()) {
+                eprintln!("[Tray] Error creating system tray: {}", e);
+            }
+
             if let Some(overlay) = app.get_webview_window("overlay") {
                 #[cfg(target_os = "windows")]
                 if let Ok(hwnd) = overlay.hwnd() {
@@ -237,6 +247,15 @@ pub fn run() {
             #[cfg(target_os = "windows")]
             keyboard_hook::init_keyboard_hook(app.handle().clone());
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" {
+                    api.prevent_close();
+                    let _ = window.hide();
+                    println!("[Window] Main window close intercepted; minimized to system tray");
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             show_overlay,

@@ -2,10 +2,13 @@
   "name": "voiceflow",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@9.15.0",
   "scripts": {
     "dev": "turbo run dev --parallel",
     "build": "turbo run build",
     "start": "pnpm --filter @voiceflow/api build && pnpm --filter @voiceflow/desktop tauri dev",
+    "package": "turbo run build && pnpm --filter @voiceflow/desktop tauri build",
+    "package:debug": "turbo run build && pnpm --filter @voiceflow/desktop tauri build --debug",
     "desktop": "pnpm --filter @voiceflow/desktop dev",
     "api": "pnpm --filter @voiceflow/api dev"
   },

@@ -26,8 +26,11 @@ export class WhisperCliAdapter implements ITranscriptionAdapter {
       this.getAppDataPath('bin', 'whisper-cli'),
       path.resolve(process.cwd(), 'bin', 'whisper-cli.exe'),
       path.resolve(process.cwd(), 'bin', 'whisper-cli'),
+      path.resolve(process.cwd(), 'resources', 'bin', 'whisper-cli.exe'),
       path.resolve(process.cwd(), '..', 'bin', 'whisper-cli.exe'),
       path.resolve(process.cwd(), '..', '..', 'bin', 'whisper-cli.exe'),
+      path.resolve(process.cwd(), '..', 'resources', 'bin', 'whisper-cli.exe'),
+      path.resolve(path.dirname(process.execPath), 'resources', 'bin', 'whisper-cli.exe'),
       'D:\\whisper.cpp\\build\\bin\\Release\\whisper-cli.exe',
     ];
 

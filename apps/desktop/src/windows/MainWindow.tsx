@@ -18,10 +18,29 @@ export type NavTab = "studio" | "models" | "history" | "vocabulary";
 export default function MainWindow() {
   const [activeTab, setActiveTab] = useState<NavTab>("studio");
   const [liveText, setLiveText] = useState("");
+  const [autostartEnabled, setAutostartEnabled] = useState(false);
 
   const currentSessionIdRef = useRef<string | null>(null);
   const startTimeRef = useRef<number>(0);
   const hasInsertedRef = useRef(false);
+  const hasTriggeredInitialDownloadRef = useRef(false);
+
+  useEffect(() => {
+    invoke<boolean>("get_autostart_status")
+      .then((enabled) => setAutostartEnabled(enabled))
+      .catch(() => {});
+  }, []);
+
+  const handleToggleAutostart = async () => {
+    try {
+      const updated = await invoke<boolean>("set_autostart_status", {
+        enabled: !autostartEnabled,
+      });
+      setAutostartEnabled(updated);
+    } catch (err) {
+      console.error("Failed to toggle autostart:", err);
+    }
+  };
 
   const {
     selectedDeviceId,
@@ -177,6 +196,23 @@ export default function MainWindow() {
     return () => unlisten();
   }, [initDeviceListener]);
 
+  // Auto-onboarding: On clean install without any models, automatically download base.en
+  useEffect(() => {
+    if (
+      isConnected &&
+      models.length > 0 &&
+      !hasTriggeredInitialDownloadRef.current
+    ) {
+      const hasAnyInstalled = models.some((m) => m.installed);
+      const isDownloadingAny = Object.keys(downloadProgressMap).length > 0;
+      if (!hasAnyInstalled && !isDownloadingAny) {
+        hasTriggeredInitialDownloadRef.current = true;
+        console.log("[Onboarding] Fresh install: Auto-initiating download for base.en model...");
+        downloadModel("base.en");
+      }
+    }
+  }, [isConnected, models, downloadProgressMap, downloadModel]);
+
   // Global shortcut listeners from Tauri
   useEffect(() => {
     let unlistenToggle: (() => void) | undefined;
@@ -297,6 +333,22 @@ export default function MainWindow() {
             <span className="text-[10px]">Direct Typing:</span>
             <kbd className="font-mono text-[10px] text-white">Ctrl + Space</kbd>
           </div>
+
+          {/* Autostart Toggle Badge */}
+          <button
+            onClick={handleToggleAutostart}
+            className="hidden md:flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-[#0E0F14] hover:bg-white/[0.04] px-2.5 py-1 text-xs text-slate-400 transition cursor-pointer"
+            title="Automatically launch VoiceFlow minimized in System Tray when Windows boots"
+          >
+            <span
+              className={`text-xs ${
+                autostartEnabled ? "text-emerald-400 font-bold" : "text-slate-500"
+              }`}
+            >
+              {autostartEnabled ? "✓" : "○"}
+            </span>
+            <span className="text-[10px]">Start on Boot</span>
+          </button>
         </div>
       </header>
 

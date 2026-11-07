@@ -1,5 +1,5 @@
 use tauri::{
-    menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem},
+    menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager,
 };
@@ -7,11 +7,15 @@ use tauri::{
 pub fn create_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let open_item = MenuItemBuilder::with_id("open", "Open VoiceFlow").build(app)?;
     let toggle_item = MenuItemBuilder::with_id("toggle", "Toggle Dictation (Ctrl+Space)").build(app)?;
+    let autostart_enabled = crate::autostart::is_autostart_enabled();
+    let autostart_item = CheckMenuItemBuilder::with_id("autostart", "Start with Windows")
+        .checked(autostart_enabled)
+        .build(app)?;
     let separator = PredefinedMenuItem::separator(app)?;
     let quit_item = MenuItemBuilder::with_id("quit", "Quit VoiceFlow").build(app)?;
 
     let menu = MenuBuilder::new(app)
-        .items(&[&open_item, &toggle_item, &separator, &quit_item])
+        .items(&[&open_item, &toggle_item, &autostart_item, &separator, &quit_item])
         .build()?;
 
     let mut tray_builder = TrayIconBuilder::new()
@@ -34,6 +38,14 @@ pub fn create_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
             }
             "toggle" => {
                 crate::trigger_toggle_overlay(app.clone());
+            }
+            "autostart" => {
+                let current = crate::autostart::is_autostart_enabled();
+                if current {
+                    let _ = crate::autostart::disable_autostart();
+                } else {
+                    let _ = crate::autostart::enable_autostart();
+                }
             }
             "quit" => {
                 app.exit(0);

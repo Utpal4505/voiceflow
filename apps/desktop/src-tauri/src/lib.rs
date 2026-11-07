@@ -1,3 +1,4 @@
+pub mod autostart;
 pub mod context;
 pub mod insertion;
 pub mod window;
@@ -171,6 +172,21 @@ fn get_active_context(app: AppHandle) -> AppContext {
 }
 
 #[tauri::command]
+fn get_autostart_status() -> bool {
+    autostart::is_autostart_enabled()
+}
+
+#[tauri::command]
+fn set_autostart_status(enabled: bool) -> Result<bool, String> {
+    if enabled {
+        autostart::enable_autostart()?;
+    } else {
+        autostart::disable_autostart()?;
+    }
+    Ok(autostart::is_autostart_enabled())
+}
+
+#[tauri::command]
 fn insert_text(app: AppHandle, text: String) -> Result<(), String> {
     println!("[Rust Insert] insert_text command called. Text length: {}", text.len());
     #[cfg(target_os = "windows")]
@@ -246,6 +262,16 @@ pub fn run() {
             }
             #[cfg(target_os = "windows")]
             keyboard_hook::init_keyboard_hook(app.handle().clone());
+
+            let args: Vec<String> = std::env::args().collect();
+            let is_minimized = args.iter().any(|arg| arg == "--minimized" || arg == "--autostart");
+            if is_minimized {
+                if let Some(main_win) = app.get_webview_window("main") {
+                    let _ = main_win.hide();
+                    println!("[Startup] Launched minimized to tray on system boot");
+                }
+            }
+
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -262,7 +288,9 @@ pub fn run() {
             hide_overlay,
             toggle_overlay,
             get_active_context,
-            insert_text
+            insert_text,
+            get_autostart_status,
+            set_autostart_status
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")

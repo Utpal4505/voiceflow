@@ -7,6 +7,7 @@ import { useWebSocket } from "../hooks/useWebSocket";
 import { useHistoryStore } from "../stores/historyStore";
 import VoiceFlowLogo from "../components/common/VoiceFlowLogo";
 import { Mic, Check, AlertCircle, Loader2 } from "lucide-react";
+import { trackDictationCompleted, trackInsertionFailed } from "../lib/telemetry";
 
 const MAX_RECORDING_MS = 180_000;
 
@@ -99,12 +100,32 @@ export default function OverlayWindow() {
         durationMs: Date.now() - (startTimeRef.current || Date.now()),
       });
 
+      const totalLatencyMs = Date.now() - (startTimeRef.current || Date.now());
+      const wordCount = textToInsert.trim().split(/\s+/).filter(Boolean).length;
+      const audioDurationSec = transcript?.metrics?.audioDurationMs
+        ? transcript.metrics.audioDurationMs / 1000
+        : totalLatencyMs / 1000;
+
       try {
         console.log("[Overlay] Invoking Tauri 'insert_text' command...");
         await invoke("insert_text", { text: textToInsert });
         console.log("[Overlay] 'insert_text' invocation resolved successfully");
+
+        // Telemetry: Record successful dictation metrics (Metadata only, NO text/audio)
+        trackDictationCompleted({
+          audioDurationSec,
+          wordCount,
+          totalLatencyMs,
+          rtf: transcript?.metrics?.rtf,
+          modelId: transcript?.metrics?.modelId,
+          engineTier: transcript?.metrics?.engineTier,
+        });
       } catch (err) {
         console.error("[Overlay] 'insert_text' invocation failed:", err);
+        trackInsertionFailed({
+          reason: err instanceof Error ? err.message : String(err),
+          durationMs: totalLatencyMs,
+        });
       } finally {
         console.log("[Overlay] handleInsert cleanup: stopping recording and resetting session");
         stopRecording();

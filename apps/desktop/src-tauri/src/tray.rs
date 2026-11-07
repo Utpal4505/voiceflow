@@ -1,7 +1,7 @@
 use tauri::{
     menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager,
+    AppHandle, Emitter, Manager,
 };
 
 pub fn create_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
@@ -11,11 +11,12 @@ pub fn create_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let autostart_item = CheckMenuItemBuilder::with_id("autostart", "Start with Windows")
         .checked(autostart_enabled)
         .build(app)?;
+    let update_item = MenuItemBuilder::with_id("check_updates", "Check for Updates...").build(app)?;
     let separator = PredefinedMenuItem::separator(app)?;
     let quit_item = MenuItemBuilder::with_id("quit", "Quit VoiceFlow").build(app)?;
 
     let menu = MenuBuilder::new(app)
-        .items(&[&open_item, &toggle_item, &autostart_item, &separator, &quit_item])
+        .items(&[&open_item, &toggle_item, &autostart_item, &update_item, &separator, &quit_item])
         .build()?;
 
     let mut tray_builder = TrayIconBuilder::new()
@@ -45,6 +46,14 @@ pub fn create_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
                     let _ = crate::autostart::disable_autostart();
                 } else {
                     let _ = crate::autostart::enable_autostart();
+                }
+            }
+            "check_updates" => {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.unminimize();
+                    let _ = window.set_focus();
+                    let _ = window.emit("check-for-updates", ());
                 }
             }
             "quit" => {

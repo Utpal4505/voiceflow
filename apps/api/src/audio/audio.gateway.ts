@@ -183,18 +183,19 @@ export class AudioGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     try {
       this.logger.log(`[Finalize] Processing final audio (${session.chunks.length} chunks)...`);
-      const text = await this.transcriptionService.transcribeFinal(
+      const result = await this.transcriptionService.transcribeFinal(
         session.id,
         session.chunks,
         session.sampleRate,
         session.modelId,
       );
 
-      this.logger.log(`[Finalize] Done for ${session.id}: "${text}"`);
+      this.logger.log(`[Finalize] Done for ${session.id}: "${result.text}" (RTF: ${result.metrics?.rtf ?? 'N/A'})`);
       client.emit('final_transcript', {
         sessionId: session.id,
-        text,
+        text: result.text,
         isFinal: true,
+        metrics: result.metrics,
       });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);

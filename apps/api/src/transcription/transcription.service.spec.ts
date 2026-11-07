@@ -32,10 +32,13 @@ describe('TranscriptionService', () => {
     expect(() => service.cancelAll()).not.toThrow();
   });
 
-  it('should transcribe final and return result', async () => {
+  it('should transcribe final and return result with metrics', async () => {
     const chunk = Buffer.from(new Uint8Array(3200));
     const result = await service.transcribeFinal('sess-2', [chunk], 16000, 'base.en');
 
-    expect(typeof result).toBe('string');
+    expect(result).toHaveProperty('text');
+    expect(typeof result.text).toBe('string');
+    expect(result).toHaveProperty('metrics');
+    expect(result.metrics?.audioDurationMs).toBeGreaterThan(0);
   });
 });

@@ -30,9 +30,20 @@ export class MockTranscriptionAdapter implements ITranscriptionAdapter {
 
     await new Promise((r) => setTimeout(r, 120));
 
+    const inferenceDurationMs = Date.now() - start;
+    const audioDurationMs = Math.round(durationSeconds * 1000);
+    const rtf = audioDurationMs > 0 ? Number((inferenceDurationMs / audioDurationMs).toFixed(3)) : 0;
+
     return {
       text: this.samplePhrases[index],
-      durationMs: Date.now() - start,
+      durationMs: inferenceDurationMs,
+      metrics: {
+        audioDurationMs,
+        inferenceDurationMs,
+        rtf,
+        engineTier: 'mock-engine',
+        modelId: _modelId || 'mock',
+      },
     };
   }
 }

@@ -187,9 +187,22 @@ export class WhisperCliAdapter implements ITranscriptionAdapter {
         });
       });
 
+      const inferenceDurationMs = Date.now() - start;
+      const byteRate = (sampleRate * 16) / 8;
+      const audioDurationMs = byteRate > 0 ? Math.round((audioPcm.byteLength / byteRate) * 1000) : 0;
+      const rtf = audioDurationMs > 0 ? Number((inferenceDurationMs / audioDurationMs).toFixed(3)) : 0;
+      const profile = this.hardwareService?.getHardwareProfile();
+
       return {
         text,
-        durationMs: Date.now() - start,
+        durationMs: inferenceDurationMs,
+        metrics: {
+          audioDurationMs,
+          inferenceDurationMs,
+          rtf,
+          engineTier: profile?.engineTier,
+          modelId,
+        },
       };
     } finally {
       await fs.unlink(tempWav).catch(() => {});

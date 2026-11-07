@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
-import { SessionState, ModelInfo, WhisperModelId, HardwareProfile } from "@voiceflow/contracts";
+import { SessionState, ModelInfo, WhisperModelId, HardwareProfile, PerformanceMetrics } from "@voiceflow/contracts";
 
 export type ConnectionStatus = "connected" | "connecting" | "disconnected" | "error";
 
@@ -8,6 +8,7 @@ export interface TranscriptData {
   sessionId: string;
   text: string;
   isFinal: boolean;
+  metrics?: PerformanceMetrics;
 }
 
 export interface DownloadProgressPayload {

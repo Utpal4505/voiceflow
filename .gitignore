@@ -12,3 +12,5 @@ apps/desktop/src-tauri/target/
 .env.local
 *.tsbuildinfo
 bin/node.exe
+*.key
+*.key.pub

@@ -11,7 +11,9 @@ import { useSettingsStore } from "../stores/settingsStore";
 import { useHistoryStore } from "../stores/historyStore";
 import { useVocabularyStore } from "../stores/vocabularyStore";
 import VoiceFlowLogo from "../components/common/VoiceFlowLogo";
-import { Mic, Cpu, History, BookOpen, Loader2 } from "lucide-react";
+import UpdateModal from "../components/updater/UpdateModal";
+import { Mic, Cpu, History, BookOpen, Loader2, RefreshCw, Activity } from "lucide-react";
+import { trackAppLaunched, trackSettingsChanged, trackModelSwitched } from "../lib/telemetry";
 
 export type NavTab = "studio" | "models" | "history" | "vocabulary";
 
@@ -24,11 +26,13 @@ export default function MainWindow() {
   const startTimeRef = useRef<number>(0);
   const hasInsertedRef = useRef(false);
   const hasTriggeredInitialDownloadRef = useRef(false);
+  const triggerUpdateCheckRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     invoke<boolean>("get_autostart_status")
       .then((enabled) => setAutostartEnabled(enabled))
       .catch(() => {});
+    trackAppLaunched();
   }, []);
 
   const handleToggleAutostart = async () => {
@@ -45,7 +49,9 @@ export default function MainWindow() {
   const {
     selectedDeviceId,
     availableDevices,
+    telemetryEnabled,
     setSelectedDeviceId,
+    setTelemetryEnabled,
     initDeviceListener,
   } = useSettingsStore();
 
@@ -72,6 +78,19 @@ export default function MainWindow() {
 
   const { history, addHistoryItem } = useHistoryStore();
   const { terms } = useVocabularyStore();
+
+  const hasTrackedLaunchRef = useRef(false);
+  useEffect(() => {
+    if (hardwareProfile && !hasTrackedLaunchRef.current) {
+      hasTrackedLaunchRef.current = true;
+      trackAppLaunched({
+        engineTier: hardwareProfile.engineTier,
+        recommendedModelId: hardwareProfile.recommendedModelId,
+        cpuModel: hardwareProfile.cpuModel,
+        logicalCores: hardwareProfile.logicalCores,
+      });
+    }
+  }, [hardwareProfile]);
 
   // Audio chunk streamer
   const handleAudioChunk = useCallback(
@@ -334,6 +353,20 @@ export default function MainWindow() {
             <kbd className="font-mono text-[10px] text-white">Ctrl + Space</kbd>
           </div>
 
+          {/* Analytics Toggle Badge */}
+          <button
+            onClick={() => {
+              const updated = !telemetryEnabled;
+              setTelemetryEnabled(updated);
+              trackSettingsChanged("telemetry_enabled", updated);
+            }}
+            className="hidden xl:flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-[#0E0F14] hover:bg-white/[0.04] px-2.5 py-1 text-xs text-slate-400 transition cursor-pointer"
+            title="Anonymous, privacy-preserving performance telemetry"
+          >
+            <Activity className={`h-3 w-3 ${telemetryEnabled ? "text-emerald-400" : "text-slate-500"}`} />
+            <span className="text-[10px]">Analytics: {telemetryEnabled ? "On" : "Off"}</span>
+          </button>
+
           {/* Autostart Toggle Badge */}
           <button
             onClick={handleToggleAutostart}
@@ -349,8 +382,21 @@ export default function MainWindow() {
             </span>
             <span className="text-[10px]">Start on Boot</span>
           </button>
+
+          {/* Check for Updates Button */}
+          <button
+            onClick={() => triggerUpdateCheckRef.current?.()}
+            className="hidden lg:flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-[#0E0F14] hover:bg-white/[0.04] px-2.5 py-1 text-xs text-slate-400 hover:text-white transition cursor-pointer"
+            title="Check for VoiceFlow updates"
+          >
+            <RefreshCw className="h-3 w-3 text-slate-400" />
+            <span className="text-[10px]">Updates</span>
+          </button>
         </div>
       </header>
+
+      {/* Auto-Updater Modal / Notification */}
+      <UpdateModal currentVersion="v0.1.0" triggerCheckRef={triggerUpdateCheckRef} />
 
       {/* Main Full-Bleed Content Workspace */}
       <main className="flex-1 overflow-y-auto px-8 py-6 relative z-10">
@@ -380,7 +426,11 @@ export default function MainWindow() {
             downloadProgressMap={downloadProgressMap}
             onDownload={downloadModel}
             onDelete={deleteModel}
-            onSetActive={setActiveModel}
+            onSetActive={(newModelId) => {
+              const currentActive = models.find((m) => m.active)?.id || "unknown";
+              setActiveModel(newModelId);
+              trackModelSwitched(currentActive, newModelId);
+            }}
           />
         )}
 

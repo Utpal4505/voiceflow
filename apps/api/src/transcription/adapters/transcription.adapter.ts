@@ -1,7 +1,10 @@
+import { PerformanceMetrics } from '@voiceflow/contracts';
+
 export interface TranscriptionResult {
   text: string;
   durationMs: number;
   language?: string;
+  metrics?: PerformanceMetrics;
 }
 
 export interface ITranscriptionAdapter {

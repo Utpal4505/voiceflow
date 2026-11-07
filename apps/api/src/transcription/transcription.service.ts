@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ITranscriptionAdapter } from './adapters/transcription.adapter.js';
+import { ITranscriptionAdapter, TranscriptionResult } from './adapters/transcription.adapter.js';
 import { WhisperCliAdapter } from './adapters/whisper.adapter.js';
 import { MockTranscriptionAdapter } from './adapters/mock.adapter.js';
 import { HardwareService } from './hardware.service.js';
@@ -101,7 +101,7 @@ export class TranscriptionService {
     chunks: Buffer[],
     sampleRate = 16000,
     modelId = 'base.en',
-  ): Promise<string> {
+  ): Promise<TranscriptionResult> {
     // Immediately cancel any in-flight partial or previous final process so whisper-cli is freed
     this.cancelActivePartials(sessionId);
     this.cancelActiveFinal(sessionId);
@@ -115,7 +115,7 @@ export class TranscriptionService {
       const combined = Buffer.concat(chunks);
       const result = await adapter.transcribe(combined, sampleRate, modelId, controller.signal);
       this.logger.log(`Final transcript for ${sessionId} (${result.durationMs}ms): "${result.text}"`);
-      return result.text;
+      return result;
     } finally {
       this.processingLocks.delete(sessionId);
       if (this.finalControllers.get(sessionId) === controller) {

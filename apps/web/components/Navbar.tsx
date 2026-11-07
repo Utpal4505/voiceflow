@@ -27,7 +27,7 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const downloadUrl =
-    "https://github.com/Utpal4505/voiceflow/releases/latest/download/VoiceFlow_0.2.0_x64-setup.exe";
+    "https://github.com/Utpal4505/voiceflow-releases/releases/latest/download/VoiceFlow_0.2.0_x64-setup.exe";
 
   const navLinks = [
     { label: "Features", href: "#features" },

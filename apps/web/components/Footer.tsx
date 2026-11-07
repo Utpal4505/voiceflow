@@ -23,7 +23,7 @@ function GithubIcon({ className = "h-4 w-4" }: { className?: string }) {
 
 export default function Footer() {
   const downloadExeUrl =
-    "https://github.com/Utpal4505/voiceflow/releases/latest/download/VoiceFlow_0.2.0_x64-setup.exe";
+    "https://github.com/Utpal4505/voiceflow-releases/releases/latest/download/VoiceFlow_0.2.0_x64-setup.exe";
 
   return (
     <footer className="border-t border-white/[0.08] bg-[#07080D]">

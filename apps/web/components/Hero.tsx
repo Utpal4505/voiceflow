@@ -22,9 +22,9 @@ function GithubIcon({ className = "h-5 w-5" }: { className?: string }) {
 
 export default function Hero() {
   const downloadExeUrl =
-    "https://github.com/Utpal4505/voiceflow/releases/latest/download/VoiceFlow_0.2.0_x64-setup.exe";
+    "https://github.com/Utpal4505/voiceflow-releases/releases/latest/download/VoiceFlow_0.2.0_x64-setup.exe";
   const downloadZipUrl =
-    "https://github.com/Utpal4505/voiceflow/releases/latest/download/VoiceFlow_0.2.0_x64-setup.zip";
+    "https://github.com/Utpal4505/voiceflow-releases/releases/latest/download/VoiceFlow_0.2.0_x64-setup.zip";
 
   return (
     <section className="relative overflow-hidden pt-16 pb-14 lg:pt-24 lg:pb-20">

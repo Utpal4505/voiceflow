@@ -92,10 +92,15 @@ for (const file of filesToCopy) {
   }
 }
 
-// Create convenience .zip of installer if .exe exists
+// Create convenience .zip of installer and generic VoiceFlow-Setup.exe
 const setupExe = path.join(releaseDir, `VoiceFlow_${version}_x64-setup.exe`);
+const genericExe = path.join(releaseDir, "VoiceFlow-Setup.exe");
 const setupZip = path.join(releaseDir, `VoiceFlow_${version}_x64-setup.zip`);
+
 if (fs.existsSync(setupExe)) {
+  fs.copyFileSync(setupExe, genericExe);
+  console.log(`   ✓ VoiceFlow-Setup.exe (Direct permanent link asset)`);
+
   try {
     execSync(
       `powershell -NoProfile -Command "Compress-Archive -Path '${setupExe}' -DestinationPath '${setupZip}' -Force"`,

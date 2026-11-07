@@ -1,19 +1,8 @@
 name: Release VoiceFlow
 
+# Disabled automatic push triggers to avoid slow 15+ min Windows runner builds.
+# Trigger manually from GitHub Actions tab when needed, or use local `pnpm release`.
 on:
-  push:
-    tags:
-      - 'v*'
-    branches:
-      - main
-    paths:
-      - 'apps/desktop/**'
-      - 'apps/api/**'
-      - 'packages/contracts/**'
-      - 'package.json'
-      - '!apps/web/**'
-      - '!README.md'
-      - '!docs/**'
   workflow_dispatch:
 
 permissions:

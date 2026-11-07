@@ -15,8 +15,17 @@ export default function InteractiveDemo() {
   const [displayedText, setDisplayedText] = useState("");
   const [isTyping, setIsTyping] = useState(true);
   const [isFinished, setIsFinished] = useState(false);
+  const [tick, setTick] = useState(0);
 
   const fullText = DEMO_PRESETS[activePresetIndex];
+
+  useEffect(() => {
+    if (!isTyping) return;
+    const interval = setInterval(() => {
+      setTick((t) => t + 1);
+    }, 150);
+    return () => clearInterval(interval);
+  }, [isTyping]);
 
   useEffect(() => {
     setDisplayedText("");
@@ -100,7 +109,7 @@ export default function InteractiveDemo() {
                   key={i}
                   className="w-1 rounded-full bg-gradient-to-t from-[#514BFA] to-[#A5A0FF] transition-all duration-150"
                   style={{
-                    height: isTyping ? `${Math.max(15, (h * Math.sin(Date.now() / 200 + i)) % 100)}%` : "20%",
+                    height: isTyping ? `${Math.max(15, (h * Math.sin(tick + i)) % 100)}%` : "20%",
                     opacity: isTyping ? 1 : 0.4,
                   }}
                 />

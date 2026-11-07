@@ -66,63 +66,60 @@ fn find_standalone_server() -> Option<PathBuf> {
 fn find_api_script_and_workdir() -> Option<(PathBuf, PathBuf)> {
     let roots = get_search_roots();
     for root in &roots {
-        // Monorepo development: root is repo root containing apps/api/dist/main.js
-        let dev_candidate = root.join("apps").join("api").join("dist").join("main.js");
-        if dev_candidate.exists() {
-            return Some((dev_candidate, root.clone()));
-        }
+        let candidates = [
+            root.join("resources").join("server").join("index.js"),
+            root.join("server").join("index.js"),
+            root.join("resources").join("server").join("dist").join("main.js"),
+            root.join("server").join("dist").join("main.js"),
+            root.join("apps").join("api").join("dist").join("main.js"),
+            root.join("api").join("dist").join("main.js"),
+            root.join("dist").join("main.js"),
+        ];
 
-        // Direct api package directory: root/api/dist/main.js
-        let api_candidate = root.join("api").join("dist").join("main.js");
-        if api_candidate.exists() {
-            let workdir = if root.join("package.json").exists() {
-                root.clone()
-            } else if let Some(p) = root.parent() {
-                p.to_path_buf()
-            } else {
-                root.clone()
-            };
-            return Some((api_candidate, workdir));
-        }
-
-        // Production bundle structure: root/server/dist/main.js
-        let prod_server = root.join("server").join("dist").join("main.js");
-        if prod_server.exists() {
-            return Some((prod_server, root.clone()));
-        }
-
-        // Direct dist/main.js
-        let direct_dist = root.join("dist").join("main.js");
-        if direct_dist.exists() {
-            return Some((direct_dist, root.clone()));
+        for script in &candidates {
+            if script.exists() {
+                let workdir = if let Some(parent) = script.parent() {
+                    if parent.join("package.json").exists() {
+                        parent.to_path_buf()
+                    } else if let Some(grandparent) = parent.parent() {
+                        grandparent.to_path_buf()
+                    } else {
+                        root.clone()
+                    }
+                } else {
+                    root.clone()
+                };
+                return Some((script.clone(), workdir));
+            }
         }
     }
     None
 }
 
 fn find_node_binary(workdir: &PathBuf) -> PathBuf {
-    // 1. Check for bundled portable node runtime
-    let candidates = [
-        workdir.join("server").join("node.exe"),
-        workdir.join("node.exe"),
-        workdir.join("bin").join("node.exe"),
-    ];
+    let roots = get_search_roots();
 
-    for c in &candidates {
-        if c.exists() {
-            return c.clone();
+    // 1. Check all candidate locations for bundled portable node runtime
+    for root in &roots {
+        let candidates = [
+            root.join("resources").join("bin").join("node.exe"),
+            root.join("bin").join("node.exe"),
+            root.join("node.exe"),
+            workdir.join("resources").join("bin").join("node.exe"),
+            workdir.join("bin").join("node.exe"),
+            workdir.join("node.exe"),
+        ];
+
+        for c in &candidates {
+            if c.exists() {
+                println!("[ServerManager] Found portable node runtime: {:?}", c);
+                return c.clone();
+            }
         }
     }
 
-    // 2. Check all search roots
-    for root in &get_search_roots() {
-        let node_c = root.join("node.exe");
-        if node_c.exists() {
-            return node_c;
-        }
-    }
-
-    // 3. Fallback to system node
+    // 2. Fallback to system node
+    println!("[ServerManager] Using system 'node' command");
     PathBuf::from("node")
 }
 

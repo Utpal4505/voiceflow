@@ -21,7 +21,13 @@ export class WhisperCliAdapter implements ITranscriptionAdapter {
   }
 
   private findBinaryPath(): string | null {
+    const scriptDir = process.argv[1] ? path.dirname(process.argv[1]) : '';
+    const nodeDir = path.dirname(process.execPath);
+
     const candidatePaths = [
+      path.join(nodeDir, 'whisper-cli.exe'),
+      path.resolve(scriptDir, '..', 'bin', 'whisper-cli.exe'),
+      path.resolve(scriptDir, 'bin', 'whisper-cli.exe'),
       this.getAppDataPath('bin', 'whisper-cli.exe'),
       this.getAppDataPath('bin', 'whisper-cli'),
       path.resolve(process.cwd(), 'bin', 'whisper-cli.exe'),
@@ -30,7 +36,7 @@ export class WhisperCliAdapter implements ITranscriptionAdapter {
       path.resolve(process.cwd(), '..', 'bin', 'whisper-cli.exe'),
       path.resolve(process.cwd(), '..', '..', 'bin', 'whisper-cli.exe'),
       path.resolve(process.cwd(), '..', 'resources', 'bin', 'whisper-cli.exe'),
-      path.resolve(path.dirname(process.execPath), 'resources', 'bin', 'whisper-cli.exe'),
+      path.resolve(nodeDir, 'resources', 'bin', 'whisper-cli.exe'),
       'D:\\whisper.cpp\\build\\bin\\Release\\whisper-cli.exe',
     ];
 

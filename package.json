@@ -12,6 +12,8 @@
     "release": "node scripts/release.mjs",
     "release:open": "explorer.exe release",
     "desktop": "pnpm --filter @voiceflow/desktop dev",
+    "web": "pnpm --filter @voiceflow/web dev",
+    "web:build": "pnpm --filter @voiceflow/web build",
     "api": "pnpm --filter @voiceflow/api dev"
   },
   "devDependencies": {

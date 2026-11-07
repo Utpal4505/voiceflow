@@ -169,9 +169,9 @@ export function useWebSocket(serverUrl = "http://localhost:3001") {
     }
   }, []);
 
-  const resetSession = useCallback((sessionId: string) => {
+  const resetSession = useCallback((sessionId?: string) => {
     console.log("[WebSocket] resetSession invoked with sessionId:", sessionId);
-    if (socketRef.current?.connected) {
+    if (sessionId && socketRef.current?.connected) {
       socketRef.current.emit("session_reset", { sessionId });
     }
     setSessionState("idle");

@@ -5,15 +5,16 @@ import AudioStudio from "../components/audio/AudioStudio";
 import ModelManager from "../components/models/ModelManager";
 import HistoryView from "../components/history/HistoryView";
 import VocabularyView from "../components/vocabulary/VocabularyView";
+import SettingsModal from "../components/settings/SettingsModal";
+import UpdateModal from "../components/updater/UpdateModal";
 import { useAudio } from "../hooks/useAudio";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useHistoryStore } from "../stores/historyStore";
 import { useVocabularyStore } from "../stores/vocabularyStore";
 import VoiceFlowLogo from "../components/common/VoiceFlowLogo";
-import UpdateModal from "../components/updater/UpdateModal";
-import { Mic, Cpu, History, BookOpen, Loader2, RefreshCw, Activity } from "lucide-react";
-import { trackAppLaunched, trackSettingsChanged, trackModelSwitched } from "../lib/telemetry";
+import { Mic, Cpu, History, BookOpen, Loader2, Settings } from "lucide-react";
+import { trackAppLaunched } from "../lib/telemetry";
 
 export type NavTab = "studio" | "models" | "history" | "vocabulary";
 
@@ -21,6 +22,7 @@ export default function MainWindow() {
   const [activeTab, setActiveTab] = useState<NavTab>("studio");
   const [liveText, setLiveText] = useState("");
   const [autostartEnabled, setAutostartEnabled] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const currentSessionIdRef = useRef<string | null>(null);
   const startTimeRef = useRef<number>(0);
@@ -49,9 +51,7 @@ export default function MainWindow() {
   const {
     selectedDeviceId,
     availableDevices,
-    telemetryEnabled,
     setSelectedDeviceId,
-    setTelemetryEnabled,
     initDeviceListener,
   } = useSettingsStore();
 
@@ -144,6 +144,9 @@ export default function MainWindow() {
 
   // Start dictation session
   const handleStartDictation = useCallback(() => {
+    if (currentSessionIdRef.current) {
+      resetSession(currentSessionIdRef.current);
+    }
     const sessionId = crypto.randomUUID();
     currentSessionIdRef.current = sessionId;
     startTimeRef.current = Date.now();
@@ -151,7 +154,7 @@ export default function MainWindow() {
 
     startSession(sessionId);
     startRecordingRef.current();
-  }, [startSession]);
+  }, [startSession, resetSession]);
 
   const handleStartDictationRef = useRef(handleStartDictation);
   handleStartDictationRef.current = handleStartDictation;
@@ -183,31 +186,24 @@ export default function MainWindow() {
   const handleCancelDictation = useCallback(() => {
     if (currentSessionIdRef.current) {
       cancelSession(currentSessionIdRef.current);
-      resetSession(currentSessionIdRef.current);
       currentSessionIdRef.current = null;
     }
     stopRecordingRef.current();
     hasInsertedRef.current = false;
-  }, [cancelSession, resetSession]);
+  }, [cancelSession]);
 
   const handleCancelDictationRef = useRef(handleCancelDictation);
   handleCancelDictationRef.current = handleCancelDictation;
 
   // When transcription is received
   useEffect(() => {
-    if (sessionState === "done") {
-      if (transcript?.text) {
-        setLiveText(transcript.text);
-        if (!hasInsertedRef.current) {
-          handleInsertRef.current(transcript.text);
-        }
-      }
-      if (currentSessionIdRef.current) {
-        resetSession(currentSessionIdRef.current);
-        currentSessionIdRef.current = null;
+    if (sessionState === "done" && transcript?.text) {
+      setLiveText(transcript.text);
+      if (!hasInsertedRef.current) {
+        handleInsertRef.current(transcript.text);
       }
     }
-  }, [sessionState, transcript, resetSession]);
+  }, [sessionState, transcript]);
 
   // Audio device change listener
   useEffect(() => {
@@ -215,18 +211,18 @@ export default function MainWindow() {
     return () => unlisten();
   }, [initDeviceListener]);
 
-  // Auto-onboarding: On clean install without any models, automatically download base.en
+  // First-run automatic download of recommended model
   useEffect(() => {
     if (
       isConnected &&
       models.length > 0 &&
       !hasTriggeredInitialDownloadRef.current
     ) {
-      const hasAnyInstalled = models.some((m) => m.installed);
-      const isDownloadingAny = Object.keys(downloadProgressMap).length > 0;
-      if (!hasAnyInstalled && !isDownloadingAny) {
-        hasTriggeredInitialDownloadRef.current = true;
-        console.log("[Onboarding] Fresh install: Auto-initiating download for base.en model...");
+      hasTriggeredInitialDownloadRef.current = true;
+      const anyInstalled = models.some((m) => m.installed);
+      const isBaseDownloading = typeof downloadProgressMap["base.en"] === "number";
+
+      if (!anyInstalled && !isBaseDownloading) {
         downloadModel("base.en");
       }
     }
@@ -276,7 +272,7 @@ export default function MainWindow() {
     <div className="flex h-screen flex-col bg-[#0B0C12] text-slate-100 select-none overflow-hidden font-sans">
       {/* Top Integrated Desktop Header Navigation */}
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/[0.08] bg-[#10121A] px-6 z-20">
-        {/* Brand Mark */}
+        {/* Left: Brand Mark */}
         <div className="flex items-center gap-3">
           <VoiceFlowLogo className="h-7 w-7 rounded-lg shadow-sm shadow-[#514BFA]/30" />
           <div className="flex items-center gap-2">
@@ -287,7 +283,7 @@ export default function MainWindow() {
           </div>
         </div>
 
-        {/* Center Segmented Navigation Rail */}
+        {/* Center: Clean Segmented Navigation Rail */}
         <nav className="flex items-center gap-1 rounded-xl border border-white/[0.06] bg-[#0E0F14] p-1">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -317,9 +313,9 @@ export default function MainWindow() {
           })}
         </nav>
 
-        {/* Right Hardware Engine Status & Dictation Indicator */}
+        {/* Right: Status Indicator & Settings Trigger */}
         <div className="flex items-center gap-3">
-          {/* Live Dictation State Badge */}
+          {/* Live Dictation State / Engine Badge */}
           {isRecording ? (
             <div className="flex items-center gap-2 rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs text-red-300 animate-pulse">
               <span className="h-2 w-2 rounded-full bg-red-400" />
@@ -340,69 +336,35 @@ export default function MainWindow() {
                 }`}
               />
               <span className="text-[11px] font-medium text-slate-300">
-                {isConnected
-                  ? hardwareProfile?.statusLabel || "AVX2 Engine Ready"
-                  : `Engine: ${wsStatus}`}
+                {isConnected ? "Engine Ready" : `Engine: ${wsStatus}`}
               </span>
             </div>
           )}
 
-          {/* Shortcut Badge */}
-          <div className="hidden sm:flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-[#0E0F14] px-2.5 py-1 text-xs text-slate-400">
-            <span className="text-[10px]">Direct Typing:</span>
-            <kbd className="font-mono text-[10px] text-white">Ctrl + Space</kbd>
-          </div>
-
-          {/* Analytics Toggle Badge */}
+          {/* Clean Settings Gear Button */}
           <button
-            onClick={() => {
-              const updated = !telemetryEnabled;
-              setTelemetryEnabled(updated);
-              trackSettingsChanged("telemetry_enabled", updated);
-            }}
-            className="hidden xl:flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-[#0E0F14] hover:bg-white/[0.04] px-2.5 py-1 text-xs text-slate-400 transition cursor-pointer"
-            title="Anonymous, privacy-preserving performance telemetry"
+            onClick={() => setIsSettingsOpen(true)}
+            className="rounded-lg border border-white/[0.08] bg-[#0E0F14] hover:bg-white/[0.06] p-1.5 text-slate-400 hover:text-white transition cursor-pointer active:scale-95"
+            title="Open Preferences & Settings"
           >
-            <Activity className={`h-3 w-3 ${telemetryEnabled ? "text-emerald-400" : "text-slate-500"}`} />
-            <span className="text-[10px]">Analytics: {telemetryEnabled ? "On" : "Off"}</span>
-          </button>
-
-          {/* Autostart Toggle Badge */}
-          <button
-            onClick={handleToggleAutostart}
-            className="hidden md:flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-[#0E0F14] hover:bg-white/[0.04] px-2.5 py-1 text-xs text-slate-400 transition cursor-pointer"
-            title="Automatically launch VoiceFlow minimized in System Tray when Windows boots"
-          >
-            <span
-              className={`text-xs ${
-                autostartEnabled ? "text-emerald-400 font-bold" : "text-slate-500"
-              }`}
-            >
-              {autostartEnabled ? "✓" : "○"}
-            </span>
-            <span className="text-[10px]">Start on Boot</span>
-          </button>
-
-          {/* Check for Updates Button */}
-          <button
-            onClick={(e) => {
-              if (e.shiftKey || e.altKey) {
-                window.dispatchEvent(new CustomEvent("voiceflow:preview-update"));
-              } else {
-                triggerUpdateCheckRef.current?.();
-              }
-            }}
-            className="hidden lg:flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-[#0E0F14] hover:bg-white/[0.04] px-2.5 py-1 text-xs text-slate-400 hover:text-white transition cursor-pointer"
-            title="Check for updates (Shift+Click to preview update modal)"
-          >
-            <RefreshCw className="h-3 w-3 text-slate-400" />
-            <span className="text-[10px]">Updates</span>
+            <Settings className="h-4 w-4" />
           </button>
         </div>
       </header>
 
       {/* Auto-Updater Modal / Notification */}
       <UpdateModal currentVersion="v0.1.0" triggerCheckRef={triggerUpdateCheckRef} />
+
+      {/* Preferences & System Settings Modal */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        autostartEnabled={autostartEnabled}
+        onToggleAutostart={handleToggleAutostart}
+        hardwareProfile={hardwareProfile}
+        onCheckUpdates={() => triggerUpdateCheckRef.current?.()}
+        currentVersion="v0.1.0"
+      />
 
       {/* Main Full-Bleed Content Workspace */}
       <main className="flex-1 overflow-y-auto px-8 py-6 relative z-10">
@@ -432,11 +394,7 @@ export default function MainWindow() {
             downloadProgressMap={downloadProgressMap}
             onDownload={downloadModel}
             onDelete={deleteModel}
-            onSetActive={(newModelId) => {
-              const currentActive = models.find((m) => m.active)?.id || "unknown";
-              setActiveModel(newModelId);
-              trackModelSwitched(currentActive, newModelId);
-            }}
+            onSetActive={setActiveModel}
           />
         )}
 

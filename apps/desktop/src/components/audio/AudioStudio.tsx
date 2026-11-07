@@ -3,7 +3,6 @@ import {
   Copy,
   Check,
   RotateCcw,
-  Cpu,
   Sparkles,
   CheckCircle2,
   Sliders,
@@ -11,6 +10,7 @@ import {
   ArrowRight,
   Square,
   ShieldAlert,
+  Keyboard,
 } from "lucide-react";
 import { useState } from "react";
 import WaveformBars from "../overlay/WaveformBars";
@@ -43,7 +43,6 @@ export default function AudioStudio({
   isSilent,
   error,
   onToggleDictation,
-  hardwareProfile,
   activeModelName,
   onNavigateHistory,
   onNavigateModels,
@@ -87,8 +86,8 @@ export default function AudioStudio({
     : 0;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full items-start select-none">
-      {/* Left Column: Interactive Voice Dictation Pad & Studio (7 Cols) */}
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full items-start select-none font-sans">
+      {/* Left Column: Interactive Voice Dictation Canvas & Feed (7 Cols) */}
       <div className="lg:col-span-7 flex flex-col gap-5">
         {/* Main Live Dictation Notepad Card */}
         <div className="surface-card rounded-2xl p-6 flex flex-col gap-4 relative overflow-hidden">
@@ -170,7 +169,7 @@ export default function AudioStudio({
                   {isRecording ? "Listening to your voice... Speak naturally" : "Ready for voice input"}
                 </span>
                 <p className="text-[11px] text-slate-500 max-w-sm">
-                  Click the button below or hit <kbd className="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-slate-300">Ctrl + Space</kbd> anywhere to dictate.
+                  Click the button below to dictate here, or use the global shortcut in any app.
                 </p>
               </div>
             )}
@@ -179,7 +178,7 @@ export default function AudioStudio({
             <div className="flex items-center justify-between pt-3 border-t border-white/[0.04] mt-2">
               <WaveformBars volume={volume} isRecording={isRecording} barCount={16} />
               <span className="font-mono text-[10px] text-slate-500">
-                {isRecording ? `${volumePercent}% Volume` : "16kHz PCM Engine"}
+                {isRecording ? `${volumePercent}% Level` : "Acoustic Standby"}
               </span>
             </div>
           </div>
@@ -197,12 +196,12 @@ export default function AudioStudio({
               {isRecording ? (
                 <>
                   <Square className="h-3.5 w-3.5 fill-current" />
-                  <span>Stop Dictation (Enter ↵)</span>
+                  <span>Stop Dictating</span>
                 </>
               ) : (
                 <>
                   <Mic className="h-4 w-4" />
-                  <span>Start Voice Dictation (Ctrl + Space)</span>
+                  <span>Start Voice Dictation</span>
                 </>
               )}
             </button>
@@ -237,8 +236,8 @@ export default function AudioStudio({
           </div>
 
           {recentItems.length === 0 ? (
-            <div className="py-5 text-center text-xs text-slate-500">
-              No recent transcriptions. Use voice dictation to see your history here.
+            <div className="py-6 text-center text-xs text-slate-500">
+              No recent transcriptions. Dictate text to see your history here.
             </div>
           ) : (
             <div className="flex flex-col gap-2">
@@ -279,43 +278,8 @@ export default function AudioStudio({
         </div>
       </div>
 
-      {/* Right Column: Audio Hardware & Telemetry Studio (5 Cols) */}
+      {/* Right Column: Audio Hardware & Model Strip (5 Cols) */}
       <div className="lg:col-span-5 flex flex-col gap-5">
-        {/* Hardware Status Strip */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="surface-card rounded-xl p-3.5 flex items-center gap-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-500/15 text-indigo-400 border border-indigo-500/25">
-              <Cpu className="h-4 w-4" />
-            </div>
-            <div className="flex flex-col min-w-0">
-              <span className="text-[10px] uppercase font-semibold tracking-wider text-slate-400">
-                Engine
-              </span>
-              <span className="text-xs font-semibold text-slate-200 truncate">
-                {hardwareProfile?.statusLabel || "AVX2 Engine"}
-              </span>
-            </div>
-          </div>
-
-          <div
-            onClick={onNavigateModels}
-            className="surface-card surface-card-hover rounded-xl p-3.5 flex items-center gap-3 cursor-pointer"
-            title="Click to view all models"
-          >
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#514BFA]/15 text-[#7772FF] border border-[#514BFA]/25">
-              <Sparkles className="h-4 w-4" />
-            </div>
-            <div className="flex flex-col min-w-0">
-              <span className="text-[10px] uppercase font-semibold tracking-wider text-slate-400">
-                Model
-              </span>
-              <span className="text-xs font-semibold text-slate-200 truncate">
-                {activeModelName || "Base (English)"}
-              </span>
-            </div>
-          </div>
-        </div>
-
         {/* Audio Input & Calibrated VU Meter Card */}
         <div className="surface-card rounded-2xl p-5 flex flex-col gap-4">
           <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
@@ -323,7 +287,7 @@ export default function AudioStudio({
               <h3 className="text-xs font-semibold text-white uppercase tracking-wider">
                 Microphone Hardware
               </h3>
-              <p className="text-[11px] text-slate-400">Input source and sensitivity</p>
+              <p className="text-[11px] text-slate-400">Input source and sensitivity monitoring</p>
             </div>
             <span className="flex items-center gap-1 text-[11px] text-emerald-400 font-medium">
               <CheckCircle2 className="h-3 w-3" />
@@ -333,7 +297,7 @@ export default function AudioStudio({
 
           {/* Device Selector */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-medium text-slate-300">Selected Mic</label>
+            <label className="text-[11px] font-medium text-slate-300">Active Microphone</label>
             <div className="relative">
               <select
                 value={selectedDeviceId}
@@ -410,24 +374,58 @@ export default function AudioStudio({
                 )
               ) : (
                 <span className="text-slate-500">
-                  Ready. Dictation directly inserts into your active cursor.
+                  Ready. Voice input converts into text via local Whisper engine.
                 </span>
               )}
             </div>
           </div>
         </div>
 
-        {/* Global Shortcut Card */}
-        <div className="surface-card rounded-xl p-4 flex items-center justify-between">
-          <div className="flex flex-col">
-            <span className="text-xs font-semibold text-slate-200">Global Voice Typing</span>
-            <span className="text-[11px] text-slate-400">
-              Types directly into VS Code, Chrome, or any app
-            </span>
+        {/* Active Whisper Model Card */}
+        <div
+          onClick={onNavigateModels}
+          className="surface-card surface-card-hover rounded-2xl p-5 flex items-center justify-between cursor-pointer transition"
+          title="Click to view all models"
+        >
+          <div className="flex items-center gap-3.5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#514BFA]/15 text-[#7772FF] border border-[#514BFA]/25">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[10px] uppercase font-semibold tracking-wider text-slate-400">
+                Active Neural Model
+              </span>
+              <span className="text-sm font-semibold text-white">
+                {activeModelName || "Base (English)"}
+              </span>
+              <span className="text-[11px] text-slate-500">
+                140 MB · Instant inference (~120ms)
+              </span>
+            </div>
           </div>
-          <kbd className="rounded-lg border border-white/10 bg-[#0E1018] px-3 py-1.5 font-mono text-xs font-semibold text-white shadow-inner">
-            Ctrl + Space
-          </kbd>
+
+          <div className="flex items-center gap-1 text-xs text-[#7772FF] font-medium">
+            <span>Manage</span>
+            <ArrowRight className="h-3.5 w-3.5" />
+          </div>
+        </div>
+
+        {/* Global Typing Shortcut Card */}
+        <div className="surface-card rounded-2xl p-5 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Keyboard className="h-4 w-4 text-[#7772FF]" />
+              <span className="text-xs font-semibold text-white uppercase tracking-wider">
+                Global Voice Typing
+              </span>
+            </div>
+            <kbd className="rounded-lg border border-white/10 bg-[#0E1018] px-2.5 py-1 font-mono text-xs font-semibold text-white shadow-inner">
+              Ctrl + Space
+            </kbd>
+          </div>
+          <p className="text-[11px] text-slate-400 leading-relaxed">
+            Press this hotkey anywhere in Windows—in VS Code, Slack, Word, or Chrome—to dictate directly into your active cursor without switching windows.
+          </p>
         </div>
       </div>
     </div>

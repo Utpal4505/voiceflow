@@ -39,44 +39,53 @@ export function useWebSocket(serverUrl = "http://localhost:3001") {
     socketRef.current = socket;
 
     socket.on("connect", () => {
+      console.log("[WebSocket] Connected to engine at", serverUrl);
       setStatus("connected");
       socket.emit("get_models");
       socket.emit("get_hardware_profile");
     });
 
-    socket.on("disconnect", () => {
+    socket.on("disconnect", (reason) => {
+      console.warn("[WebSocket] Disconnected:", reason);
       setStatus("disconnected");
     });
 
-    socket.on("connect_error", () => {
+    socket.on("connect_error", (err) => {
+      console.error("[WebSocket] Connection error:", err.message);
       setStatus("error");
     });
 
-    socket.on("session_started", () => {
+    socket.on("session_started", (data) => {
+      console.log("[WebSocket] session_started:", data);
       setSessionState("recording");
       setSessionError(null);
     });
 
     socket.on("partial_transcript", (data: TranscriptData) => {
+      console.log("[WebSocket] partial_transcript:", data.text);
       setTranscript(data);
     });
 
     socket.on("final_transcript", (data: TranscriptData) => {
+      console.log("[WebSocket] final_transcript:", data.text);
       setTranscript(data);
       setSessionState("done");
     });
 
     socket.on("session_error", (data: { error: string }) => {
+      console.error("[WebSocket] session_error:", data.error);
       setSessionError(data.error);
       setSessionState("error");
     });
 
     socket.on("session_cancelled", () => {
+      console.log("[WebSocket] session_cancelled received");
       setSessionState("idle");
       setTranscript(null);
     });
 
     socket.on("session_reset_complete", () => {
+      console.log("[WebSocket] session_reset_complete received");
       setSessionState("idle");
       setTranscript(null);
     });
@@ -111,6 +120,7 @@ export function useWebSocket(serverUrl = "http://localhost:3001") {
   }, [serverUrl]);
 
   const startSession = useCallback((sessionId: string, modelId?: string) => {
+    console.log("[WebSocket] startSession invoked with sessionId:", sessionId, "modelId:", modelId);
     if (!socketRef.current?.connected) {
       setSessionError("VoiceFlow Engine (:3001) is not connected");
       setSessionState("error");
@@ -140,6 +150,7 @@ export function useWebSocket(serverUrl = "http://localhost:3001") {
   );
 
   const stopSession = useCallback((sessionId: string) => {
+    console.log("[WebSocket] stopSession invoked with sessionId:", sessionId);
     if (socketRef.current?.connected) {
       setSessionState("processing");
       socketRef.current.emit("session_stop", { sessionId });
@@ -147,6 +158,7 @@ export function useWebSocket(serverUrl = "http://localhost:3001") {
   }, []);
 
   const cancelSession = useCallback((sessionId: string) => {
+    console.log("[WebSocket] cancelSession invoked with sessionId:", sessionId);
     // Set state optimistically so UI responds immediately
     setSessionState("idle");
     setTranscript(null);
@@ -157,6 +169,7 @@ export function useWebSocket(serverUrl = "http://localhost:3001") {
   }, []);
 
   const resetSession = useCallback((sessionId: string) => {
+    console.log("[WebSocket] resetSession invoked with sessionId:", sessionId);
     if (socketRef.current?.connected) {
       socketRef.current.emit("session_reset", { sessionId });
     }

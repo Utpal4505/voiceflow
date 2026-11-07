@@ -7,6 +7,7 @@ pub mod server_manager;
 
 use std::str::FromStr;
 use tauri::{AppHandle, Emitter, Manager};
+use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use window::{get_foreground_window, restore_foreground_window, AppState};
 use context::{get_window_context, AppContext};
@@ -19,33 +20,79 @@ fn make_window_non_activating(hwnd: isize) {
     unsafe {
         let ex_style = GetWindowLongPtrW(hwnd as _, GWL_EXSTYLE);
         SetWindowLongPtrW(hwnd as _, GWL_EXSTYLE, ex_style | (WS_EX_NOACTIVATE as isize));
+        println!("[Rust Window] Window configured with WS_EX_NOACTIVATE (hwnd: {:x})", hwnd);
     }
 }
 
 #[cfg(target_os = "windows")]
-fn show_overlay_non_activating(overlay: &tauri::WebviewWindow) {
+pub fn show_overlay_window(overlay: &tauri::WebviewWindow) {
     use windows_sys::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_SHOWNOACTIVATE};
     if let Ok(hwnd) = overlay.hwnd() {
         unsafe {
             ShowWindow(hwnd.0 as _, SW_SHOWNOACTIVATE);
         }
-    } else {
-        overlay.show().ok();
     }
+    let _ = overlay.show();
+    println!("[Rust Overlay] show_overlay_window completed (SW_SHOWNOACTIVATE + Tao show)");
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn show_overlay_window(overlay: &tauri::WebviewWindow) {
+    let _ = overlay.show();
+    println!("[Rust Overlay] show_overlay_window completed (non-Windows)");
+}
+
+#[cfg(target_os = "windows")]
+pub fn hide_overlay_window(overlay: &tauri::WebviewWindow) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_HIDE};
+    if let Ok(hwnd) = overlay.hwnd() {
+        unsafe {
+            ShowWindow(hwnd.0 as _, SW_HIDE);
+        }
+    }
+    let _ = overlay.hide();
+    println!("[Rust Overlay] hide_overlay_window completed (SW_HIDE + Tao hide)");
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn hide_overlay_window(overlay: &tauri::WebviewWindow) {
+    let _ = overlay.hide();
+    println!("[Rust Overlay] hide_overlay_window completed (non-Windows)");
+}
+
+#[cfg(target_os = "windows")]
+pub fn is_overlay_window_visible(overlay: &tauri::WebviewWindow) -> bool {
+    use windows_sys::Win32::UI::WindowsAndMessaging::IsWindowVisible;
+    if let Ok(hwnd) = overlay.hwnd() {
+        unsafe {
+            return IsWindowVisible(hwnd.0 as _) != 0;
+        }
+    }
+    overlay.is_visible().unwrap_or(false)
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn is_overlay_window_visible(overlay: &tauri::WebviewWindow) -> bool {
+    overlay.is_visible().unwrap_or(false)
 }
 
 #[tauri::command]
 fn toggle_overlay(app: AppHandle) {
     if let Some(overlay) = app.get_webview_window("overlay") {
-        let is_visible = overlay.is_visible().unwrap_or(false);
+        let is_visible = is_overlay_window_visible(&overlay);
+        println!("[Rust Overlay] toggle_overlay called. is_visible: {}", is_visible);
 
         if is_visible {
             #[cfg(target_os = "windows")]
             keyboard_hook::set_hook_active(false);
-            let _ = overlay.emit("overlay:submit", ());
+            let _ = overlay.emit("overlay:toggle", ());
+            let _ = app.emit("overlay:toggle", ());
         } else {
             let state = app.state::<AppState>();
             let current_hwnd = get_foreground_window();
+            if let Some(hwnd) = current_hwnd {
+                println!("[Rust Overlay] Captured foreground window before showing: {:x}", hwnd);
+            }
             if let Ok(mut guard) = state.previous_hwnd.lock() {
                 *guard = current_hwnd;
             }
@@ -54,39 +101,25 @@ fn toggle_overlay(app: AppHandle) {
             keyboard_hook::set_hook_active(true);
             overlay.center().ok();
 
-            #[cfg(target_os = "windows")]
-            show_overlay_non_activating(&overlay);
-
-            #[cfg(not(target_os = "windows"))]
-            overlay.show().ok();
+            show_overlay_window(&overlay);
 
             let _ = overlay.emit("overlay:show", ());
+            let _ = app.emit("overlay:show", ());
         }
     } else {
-        toggle_dictation(app);
+        println!("[Rust Overlay] WARNING: overlay window not found in app!");
     }
-}
-
-#[tauri::command]
-fn toggle_dictation(app: AppHandle) {
-    let state = app.state::<AppState>();
-    let current_hwnd = get_foreground_window();
-    if let Ok(mut guard) = state.previous_hwnd.lock() {
-        *guard = current_hwnd;
-    }
-
-    #[cfg(target_os = "windows")]
-    keyboard_hook::set_hook_active(true);
-
-    let _ = app.emit("dictation:toggle", ());
-    let _ = app.emit("overlay:toggle", ());
 }
 
 #[tauri::command]
 fn show_overlay(app: AppHandle) {
+    println!("[Rust Overlay] show_overlay command called");
     if let Some(overlay) = app.get_webview_window("overlay") {
         let state = app.state::<AppState>();
         let current_hwnd = get_foreground_window();
+        if let Some(hwnd) = current_hwnd {
+            println!("[Rust Overlay] Captured foreground window: {:x}", hwnd);
+        }
         if let Ok(mut guard) = state.previous_hwnd.lock() {
             *guard = current_hwnd;
         }
@@ -95,35 +128,30 @@ fn show_overlay(app: AppHandle) {
         keyboard_hook::set_hook_active(true);
         overlay.center().ok();
 
-        #[cfg(target_os = "windows")]
-        show_overlay_non_activating(&overlay);
-
-        #[cfg(not(target_os = "windows"))]
-        overlay.show().ok();
+        show_overlay_window(&overlay);
 
         let _ = overlay.emit("overlay:show", ());
-    } else {
-        toggle_dictation(app);
+        let _ = app.emit("overlay:show", ());
     }
 }
 
 #[tauri::command]
 fn hide_overlay(app: AppHandle) {
+    println!("[Rust Overlay] hide_overlay command called");
     #[cfg(target_os = "windows")]
     keyboard_hook::set_hook_active(false);
     if let Some(overlay) = app.get_webview_window("overlay") {
-        overlay.hide().ok();
-        // NOTE: Do NOT emit overlay:hide here — the frontend triggered hide_overlay itself
-        // and already cleaned up its state. Re-emitting overlay:hide would cause a
-        // double-action loop (finalize → hide_overlay → overlay:hide → cancel/dismiss → erase text).
+        hide_overlay_window(&overlay);
+        let _ = overlay.emit("overlay:hide", ());
+        let _ = app.emit("overlay:hide", ());
         let state = app.state::<AppState>();
         if let Ok(guard) = state.previous_hwnd.lock() {
             if let Some(hwnd) = *guard {
+                println!("[Rust Overlay] Restoring foreground window: {:x}", hwnd);
                 restore_foreground_window(hwnd);
             }
         }
     }
-    let _ = app.emit("dictation:cancel", ());
 }
 
 #[tauri::command]
@@ -137,50 +165,8 @@ fn get_active_context(app: AppHandle) -> AppContext {
 }
 
 #[tauri::command]
-fn stream_text_delta(app: AppHandle, delta: String) {
-    if delta.is_empty() {
-        return;
-    }
-    let state = app.state::<AppState>();
-    if let Ok(guard) = state.previous_hwnd.lock() {
-        if let Some(hwnd) = *guard {
-            restore_foreground_window(hwnd);
-        }
-    }
-    insertion::type_unicode_chars(&delta);
-}
-
-#[tauri::command]
-fn reconcile_streamed_text(app: AppHandle, backspaces: usize, append: String) {
-    let state = app.state::<AppState>();
-    if let Ok(guard) = state.previous_hwnd.lock() {
-        if let Some(hwnd) = *guard {
-            restore_foreground_window(hwnd);
-        }
-    }
-    if backspaces > 0 {
-        insertion::backspace_chars(backspaces);
-    }
-    if !append.is_empty() {
-        insertion::type_unicode_chars(&append);
-    }
-}
-
-#[tauri::command]
-fn cancel_streamed_text(app: AppHandle, total_chars: usize) {
-    let state = app.state::<AppState>();
-    if let Ok(guard) = state.previous_hwnd.lock() {
-        if let Some(hwnd) = *guard {
-            restore_foreground_window(hwnd);
-        }
-    }
-    if total_chars > 0 {
-        insertion::backspace_chars(total_chars);
-    }
-}
-
-#[tauri::command]
 fn insert_text(app: AppHandle, text: String) -> Result<(), String> {
+    println!("[Rust Insert] insert_text command called. Text length: {}", text.len());
     #[cfg(target_os = "windows")]
     keyboard_hook::set_hook_active(false);
     let state = app.state::<AppState>();
@@ -190,16 +176,21 @@ fn insert_text(app: AppHandle, text: String) -> Result<(), String> {
     };
 
     if let Some(overlay) = app.get_webview_window("overlay") {
-        overlay.hide().ok();
+        hide_overlay_window(&overlay);
     }
 
+    app.clipboard()
+        .write_text(&text)
+        .map_err(|e| e.to_string())?;
+
     if let Some(hwnd) = previous_hwnd {
+        println!("[Rust Insert] Restoring foreground target window: {:x}", hwnd);
         restore_foreground_window(hwnd);
     }
 
-    if !text.is_empty() {
-        insertion::type_unicode_chars(&text);
-    }
+    std::thread::sleep(std::time::Duration::from_millis(60));
+    insertion::simulate_paste();
+    println!("[Rust Insert] simulate_paste completed successfully");
 
     Ok(())
 }
@@ -239,7 +230,6 @@ pub fn run() {
                     make_window_non_activating(hwnd.0 as isize);
                 }
             }
-
             if let Ok(shortcut) = Shortcut::from_str("CommandOrControl+Space") {
                 let _ = app.global_shortcut().register(shortcut);
             }
@@ -248,15 +238,11 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            toggle_dictation,
-            toggle_overlay,
             show_overlay,
             hide_overlay,
+            toggle_overlay,
             get_active_context,
-            insert_text,
-            stream_text_delta,
-            reconcile_streamed_text,
-            cancel_streamed_text,
+            insert_text
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")

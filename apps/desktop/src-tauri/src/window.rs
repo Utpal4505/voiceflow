@@ -12,6 +12,7 @@ pub fn get_foreground_window() -> Option<isize> {
     unsafe {
         let hwnd = GetForegroundWindow();
         if !hwnd.is_null() {
+            println!("[Rust Window] get_foreground_window: {:p}", hwnd);
             Some(hwnd as isize)
         } else {
             None
@@ -27,9 +28,18 @@ pub fn get_foreground_window() -> Option<isize> {
 #[cfg(target_os = "windows")]
 pub fn restore_foreground_window(hwnd: isize) {
     use windows_sys::Win32::Foundation::HWND;
-    use windows_sys::Win32::UI::WindowsAndMessaging::SetForegroundWindow;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        BringWindowToTop, GetForegroundWindow, SetForegroundWindow,
+    };
+
     unsafe {
-        SetForegroundWindow(hwnd as HWND);
+        let target_hwnd = hwnd as HWND;
+        let foreground_hwnd = GetForegroundWindow();
+        println!("[Rust Window] restore_foreground_window target: {:p}, current: {:p}", target_hwnd, foreground_hwnd);
+        if foreground_hwnd != target_hwnd {
+            BringWindowToTop(target_hwnd);
+            SetForegroundWindow(target_hwnd);
+        }
     }
 }
 

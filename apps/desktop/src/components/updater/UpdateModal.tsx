@@ -26,7 +26,6 @@ export default function UpdateModal({ currentVersion = "v0.1.0", triggerCheckRef
   const [availableUpdate, setAvailableUpdate] = useState<Update | null>(null);
   const [downloadPercent, setDownloadPercent] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isToastVisible, setIsToastVisible] = useState(false);
 
   const downloadedBytesRef = useRef(0);
   const totalBytesRef = useRef(0);
@@ -62,19 +61,11 @@ export default function UpdateModal({ currentVersion = "v0.1.0", triggerCheckRef
       } else {
         setStatus("up-to-date");
         setAvailableUpdate(null);
-        if (manual) {
-          setIsToastVisible(true);
-          setTimeout(() => setIsToastVisible(false), 3500);
-        }
       }
     } catch (err) {
       console.warn("[Updater] Check failed:", err);
       setStatus("error");
       setErrorMessage(err instanceof Error ? err.message : String(err));
-      if (manual) {
-        setIsToastVisible(true);
-        setTimeout(() => setIsToastVisible(false), 4000);
-      }
     }
   }, []);
 
@@ -181,35 +172,6 @@ export default function UpdateModal({ currentVersion = "v0.1.0", triggerCheckRef
 
   return (
     <>
-      {/* Toast Notification for manual "Up to date" or transient error */}
-      {isToastVisible && !isOpen && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-xl border border-white/[0.1] bg-[#121422]/95 px-4 py-3 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-bottom-3 duration-200">
-          {status === "up-to-date" ? (
-            <>
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
-                <CheckCircle2 className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-white">VoiceFlow is up to date</p>
-                <p className="text-[11px] text-slate-400">You are on the latest version ({currentVersion})</p>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10 text-amber-400">
-                <AlertCircle className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-white">Update Check</p>
-                <p className="text-[11px] text-slate-400">
-                  {errorMessage || "No update found or server unreachable"}
-                </p>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
       {/* Main Update Modal Dialog */}
       {isOpen && availableUpdate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">

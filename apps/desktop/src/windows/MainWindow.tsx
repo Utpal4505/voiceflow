@@ -277,9 +277,6 @@ export default function MainWindow() {
           <VoiceFlowLogo className="h-7 w-7 rounded-lg shadow-sm shadow-[#514BFA]/30" />
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold tracking-tight text-white">VoiceFlow</span>
-            <span className="rounded bg-white/[0.06] px-1.5 py-0.5 font-mono text-[9px] text-slate-400">
-              v0.1
-            </span>
           </div>
         </div>
 
@@ -352,8 +349,8 @@ export default function MainWindow() {
         </div>
       </header>
 
-      {/* Auto-Updater Modal / Notification */}
-      <UpdateModal currentVersion="v0.1.0" triggerCheckRef={triggerUpdateCheckRef} />
+      {/* Auto-Updater Modal (Only shows when an actual update is available) */}
+      <UpdateModal triggerCheckRef={triggerUpdateCheckRef} />
 
       {/* Preferences & System Settings Modal */}
       <SettingsModal
@@ -362,8 +359,7 @@ export default function MainWindow() {
         autostartEnabled={autostartEnabled}
         onToggleAutostart={handleToggleAutostart}
         hardwareProfile={hardwareProfile}
-        onCheckUpdates={() => triggerUpdateCheckRef.current?.()}
-        currentVersion="v0.1.0"
+        onOpenUpdateModal={() => triggerUpdateCheckRef.current?.()}
       />
 
       {/* Main Full-Bleed Content Workspace */}

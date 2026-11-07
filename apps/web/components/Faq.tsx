@@ -1,52 +1,56 @@
 "use client";
 
 import React, { useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, HelpCircle } from "lucide-react";
 
 const FAQS = [
   {
-    q: "Does VoiceFlow require an internet connection?",
-    a: "No! Once VoiceFlow downloads the lightweight base AI model (~140 MB) on your first launch, it works 100% offline. You can dictate while on airplanes, trains, or in locations with zero Wi-Fi.",
+    q: "Does VoiceFlow require an active internet connection?",
+    a: "No! Once VoiceFlow downloads the lightweight base AI model (~140 MB) on your initial launch, it works 100% offline. You can dictate seamlessly on airplanes, trains, or in high-security facilities with zero Wi-Fi.",
   },
   {
     q: "Which Windows applications can I dictate into?",
-    a: "Every single one! Because VoiceFlow simulates native Windows keyboard inputs, you can dictate into Notepad, Google Chrome, Microsoft Word, Slack, VS Code, Discord, WhatsApp Desktop, Notion, and terminal consoles.",
+    a: "Every single one! Because VoiceFlow simulates native Windows keyboard keystrokes using a low-level hook, you can dictate into Notepad, Google Chrome, Microsoft Word, Slack, VS Code, Cursor, Discord, WhatsApp Desktop, Notion, and PowerShell terminal consoles.",
   },
   {
-    q: "Is my microphone audio or speech recorded?",
-    a: "Never. Your microphone audio is processed in memory on your CPU by OpenAI Whisper and immediately discarded after transcription. No audio files are saved to your drive, and zero bytes leave your computer.",
+    q: "Is my microphone audio or voice data ever stored or recorded?",
+    a: "Never. Your microphone audio is processed strictly in RAM by local OpenAI Whisper and immediately discarded after transcription. No audio files or transcript logs are saved to your drive, and zero bytes leave your computer.",
   },
   {
-    q: "What are the hardware requirements?",
-    a: "VoiceFlow runs on any 64-bit Windows 10 or Windows 11 machine with at least 4 GB of RAM. Any Intel or AMD CPU with AVX/AVX2 support (manufactured after 2013) will run VoiceFlow smoothly.",
+    q: "What are the hardware and system requirements?",
+    a: "VoiceFlow runs on 64-bit Windows 10 or Windows 11 with at least 4 GB of RAM. Any modern Intel or AMD CPU with AVX/AVX2 support (manufactured after 2013) will run VoiceFlow smoothly without requiring a dedicated GPU.",
   },
   {
     q: "How do in-app updates work?",
     a: "VoiceFlow features an automated, cryptographically signed updater. It checks your GitHub Releases repository in the background at most once every 12 hours. When an update is published, a small prompt lets you update and restart with a single click.",
   },
   {
-    q: "Can I customize the hotkey?",
-    a: "By default, VoiceFlow uses Ctrl + Space because it is fast, ergonomic, and does not conflict with standard Windows shortcuts. We are adding custom hotkey rebinding in an upcoming release.",
+    q: "Can I customize the hotkey shortcut?",
+    a: "By default, VoiceFlow uses Ctrl + Space because it is fast, ergonomic, and does not conflict with standard Windows shortcuts. Custom hotkey rebinding is scheduled for an upcoming release.",
   },
 ];
 
 export default function Faq() {
-  const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [openIndex, setOpenIndex] = useState<number | null>(0);
 
   const toggle = (i: number) => {
     setOpenIndex(openIndex === i ? null : i);
   };
 
   return (
-    <section id="faq" className="py-20 bg-[#0A0B10] border-t border-white/[0.06]">
-      <div className="mx-auto max-w-3xl px-6 sm:px-8">
+    <section id="faq" className="py-20 bg-[#07080D] border-t border-white/[0.06]">
+      <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-xl mx-auto">
           <div className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.04] px-3.5 py-1 text-xs font-semibold text-slate-300 mb-4">
-            Common Questions
+            <HelpCircle className="h-3.5 w-3.5 text-[#A5A0FF]" />
+            <span>Common Questions</span>
           </div>
           <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
             Frequently Asked Questions
           </h2>
+          <p className="mt-4 text-sm text-slate-400">
+            Everything you need to know about VoiceFlow privacy, offline AI, and performance.
+          </p>
         </div>
 
         <div className="mt-12 space-y-3">
@@ -55,13 +59,14 @@ export default function Faq() {
             return (
               <div
                 key={i}
-                className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#121422] transition-colors"
+                className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#0E101A] transition-all duration-200 hover:border-white/[0.15]"
               >
                 <button
                   onClick={() => toggle(i)}
                   className="flex w-full items-center justify-between p-5 text-left text-sm font-semibold text-white hover:text-[#A5A0FF] transition-colors cursor-pointer"
+                  aria-expanded={isOpen}
                 >
-                  <span>{faq.q}</span>
+                  <span className="pr-4">{faq.q}</span>
                   <ChevronDown
                     className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 ${
                       isOpen ? "rotate-180 text-[#A5A0FF]" : ""
@@ -70,7 +75,7 @@ export default function Faq() {
                 </button>
 
                 {isOpen && (
-                  <div className="px-5 pb-5 text-xs sm:text-sm text-slate-400 leading-relaxed border-t border-white/[0.04] pt-3 animate-in fade-in duration-150">
+                  <div className="px-5 pb-5 text-xs sm:text-sm text-slate-300 leading-relaxed border-t border-white/[0.04] pt-3">
                     {faq.a}
                   </div>
                 )}

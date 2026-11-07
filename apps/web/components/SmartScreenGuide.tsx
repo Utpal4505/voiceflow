@@ -1,53 +1,85 @@
 import React from "react";
-import { Info, ShieldAlert, CheckCircle2 } from "lucide-react";
+import { ShieldAlert, CheckCircle2, ExternalLink } from "lucide-react";
 
 export default function SmartScreenGuide() {
   return (
-    <section id="smartscreen" className="py-20 bg-[#0B0C12] border-t border-white/[0.06]">
-      <div className="mx-auto max-w-4xl px-6 sm:px-8">
-        <div className="rounded-2xl border border-blue-500/30 bg-[#12162A] p-8 sm:p-10 shadow-2xl relative overflow-hidden">
+    <section id="smartscreen" className="py-20 bg-[#07080D] border-t border-white/[0.06]">
+      <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+        <div className="rounded-2xl border border-blue-500/30 bg-[#0E1326] p-6 sm:p-10 shadow-2xl relative overflow-hidden">
           {/* Subtle Ambient Glow */}
           <div className="pointer-events-none absolute -right-20 -bottom-20 h-64 w-64 rounded-full bg-blue-500/10 blur-3xl" />
 
-          <div className="flex items-start gap-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
-              <Info className="h-5 w-5" />
+          <div className="flex flex-col sm:flex-row items-start gap-5">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
+              <ShieldAlert className="h-6 w-6" />
             </div>
 
-            <div className="space-y-4">
-              <h3 className="text-xl font-bold text-white tracking-tight">
-                Seeing "Windows protected your PC"? Here's why:
-              </h3>
+            <div className="space-y-4 flex-1">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+                  Seeing &quot;Windows protected your PC&quot;?
+                </h3>
+                <span className="rounded-md border border-blue-400/30 bg-blue-500/10 px-2.5 py-0.5 text-xs font-semibold text-blue-300">
+                  Standard Windows SmartScreen
+                </span>
+              </div>
 
               <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
                 When installing VoiceFlow on Windows 10 or 11, Microsoft Defender SmartScreen may display a blue warning screen. 
-                This happens with all new open-source software because Microsoft charges indie developers <strong>$300-$500/year</strong> for an EV Code Signing certificate. VoiceFlow is free and community-driven, so we haven't purchased one yet.
+                This happens with all newly published open-source tools because Microsoft requires indie developers to purchase a costly <strong>$300-$500/year</strong> EV Code Signing certificate. VoiceFlow is 100% free and community-driven, so we have not purchased an enterprise certificate yet.
               </p>
 
-              {/* Steps Box */}
-              <div className="rounded-xl border border-white/[0.08] bg-[#0A0D18] p-5 space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-blue-300">
-                  How to install in 2 clicks:
-                </p>
-                <div className="space-y-2 text-xs sm:text-sm text-slate-200">
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600/30 text-blue-300 font-bold text-[11px]">
+              {/* Windows SmartScreen Mockup UI Box */}
+              <div className="rounded-xl border border-blue-400/20 bg-[#070A14] p-5 sm:p-6 space-y-4">
+                <div className="flex items-center justify-between text-xs font-semibold text-blue-200">
+                  <span>How to install in 2 clicks:</span>
+                  <span className="font-mono text-[11px] text-slate-400">Windows Defender</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs sm:text-sm">
+                  {/* Step 1 */}
+                  <div className="flex items-start gap-3 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600/30 text-blue-300 font-bold text-xs">
                       1
                     </span>
-                    <span>Click on the small underlined text: <strong>"More info"</strong></span>
+                    <div>
+                      <p className="font-semibold text-white">Click &quot;More info&quot;</p>
+                      <p className="text-slate-400 text-xs mt-0.5">
+                        Click the small underlined text beneath the paragraph.
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600/30 text-emerald-300 font-bold text-[11px]">
+
+                  {/* Step 2 */}
+                  <div className="flex items-start gap-3 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-600/30 text-emerald-300 font-bold text-xs">
                       2
                     </span>
-                    <span>Click the button: <strong>"Run anyway"</strong></span>
+                    <div>
+                      <p className="font-semibold text-white">Click &quot;Run anyway&quot;</p>
+                      <p className="text-slate-400 text-xs mt-0.5">
+                        A new button will appear at the bottom right. Click it to launch.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 text-xs text-emerald-400 font-medium pt-1">
-                <CheckCircle2 className="h-4 w-4" />
-                <span>VoiceFlow is 100% open-source and virus-free. You can inspect all source code on GitHub.</span>
+              {/* Trust Guarantee Callout */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-emerald-400 font-medium pt-2 border-t border-white/[0.06]">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                  <span>100% open-source under MIT License. Clean, audited, and virus-free.</span>
+                </div>
+                <a
+                  href="https://github.com/Utpal4505/voiceflow"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-slate-300 hover:text-white underline cursor-pointer"
+                >
+                  <span>Inspect Code on GitHub</span>
+                  <ExternalLink className="h-3 w-3" />
+                </a>
               </div>
             </div>
           </div>

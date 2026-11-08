@@ -117,30 +117,25 @@ export default function MainWindow() {
   const startRecordingRef = useRef(startRecording);
   startRecordingRef.current = startRecording;
 
-  // Insert text into foreground editor
-  const handleInsert = useCallback(
-    async (textToInsert: string) => {
-      if (hasInsertedRef.current || !textToInsert) return;
+  // Record finalized transcription into local history
+  const handleFinalizeTranscription = useCallback(
+    (finalText: string) => {
+      if (hasInsertedRef.current || !finalText) return;
       hasInsertedRef.current = true;
 
       // Add to persistent history
       addHistoryItem({
-        text: textToInsert,
+        text: finalText,
         timestamp: Date.now(),
         durationMs: Date.now() - (startTimeRef.current || Date.now()),
       });
-
-      try {
-        await invoke("insert_text", { text: textToInsert });
-      } catch {
-        // Fallback
-      }
+      console.log("[MainWindow] Transcription finalized and saved to history");
     },
     [addHistoryItem]
   );
 
-  const handleInsertRef = useRef(handleInsert);
-  handleInsertRef.current = handleInsert;
+  const handleFinalizeTranscriptionRef = useRef(handleFinalizeTranscription);
+  handleFinalizeTranscriptionRef.current = handleFinalizeTranscription;
 
   // Start dictation session
   const handleStartDictation = useCallback(() => {
@@ -195,15 +190,36 @@ export default function MainWindow() {
   const handleCancelDictationRef = useRef(handleCancelDictation);
   handleCancelDictationRef.current = handleCancelDictation;
 
-  // When transcription is received
+  // When transcription is received in MainWindow, show text in pad and store in history without stealing focus
   useEffect(() => {
     if (sessionState === "done" && transcript?.text) {
       setLiveText(transcript.text);
       if (!hasInsertedRef.current) {
-        handleInsertRef.current(transcript.text);
+        handleFinalizeTranscriptionRef.current(transcript.text);
       }
     }
   }, [sessionState, transcript]);
+
+  // Keyboard shortcut listener within MainWindow (Enter to stop, Esc to cancel during recording)
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const isDictating = isRecording || sessionState === "recording";
+      if (isDictating) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          console.log("[MainWindow] Enter pressed during recording, stopping dictation...");
+          handleStopDictationRef.current();
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          console.log("[MainWindow] Escape pressed during recording, cancelling dictation...");
+          handleCancelDictationRef.current();
+        }
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isRecording, sessionState]);
 
   // Audio device change listener
   useEffect(() => {

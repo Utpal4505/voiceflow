@@ -1,4 +1,7 @@
+"use client";
+
 import React from "react";
+import { motion } from "framer-motion";
 import { DownloadCloud, Keyboard, CheckCircle, ArrowRight } from "lucide-react";
 
 const STEPS = [
@@ -30,36 +33,47 @@ const STEPS = [
 
 export default function HowItWorks() {
   return (
-    <section id="how-it-works" className="py-20 bg-[#07080D] border-t border-white/[0.06]">
+    <section id="how-it-works" className="py-24 bg-[#090A10] border-t border-white/[0.08] relative">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="text-center max-w-2xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+          className="text-center max-w-2xl mx-auto"
+        >
           <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-1 text-xs font-semibold text-emerald-300 mb-4">
             Zero Learning Curve
           </div>
-          <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white">
             Up and Running in 3 Steps
           </h2>
           <p className="mt-4 text-sm sm:text-base text-slate-300">
             No command-line setup, no configuration files, and no cloud accounts required.
           </p>
-        </div>
+        </motion.div>
 
         <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8 relative">
           {STEPS.map((item, i) => {
             const Icon = item.icon;
             return (
-              <div
+              <motion.div
                 key={i}
-                className="relative flex flex-col justify-between rounded-2xl border border-white/[0.08] bg-[#0E101A] p-8 shadow-md hover:border-[#7772FF]/40 transition-all duration-300 group"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: i * 0.1 }}
+                whileHover={{ y: -4 }}
+                className="relative flex flex-col justify-between rounded-3xl border border-white/[0.1] bg-[#0E101D] p-8 sm:p-9 shadow-xl hover:border-indigo-500/40 transition-all duration-300 group"
               >
                 <div>
                   <div className="flex items-center justify-between">
                     {/* Step Number Watermark */}
-                    <span className="font-mono text-3xl font-extrabold text-white/[0.12] group-hover:text-[#A5A0FF]/30 transition-colors select-none">
+                    <span className="font-mono text-3xl font-extrabold text-white/[0.12] group-hover:text-cyan-300/40 transition-colors select-none">
                       {item.step}
                     </span>
 
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#514BFA]/10 border border-[#514BFA]/30 text-[#A5A0FF] group-hover:bg-[#514BFA]/20 group-hover:scale-105 transition-all">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#514BFA]/15 border border-[#514BFA]/30 text-[#A5A0FF] group-hover:bg-[#514BFA]/25 group-hover:scale-105 transition-all">
                       <Icon className="h-6 w-6" />
                     </div>
                   </div>
@@ -72,13 +86,13 @@ export default function HowItWorks() {
                   </p>
                 </div>
 
-                <div className="mt-6 pt-4 border-t border-white/[0.06] flex items-center justify-between text-xs text-slate-400">
+                <div className="mt-6 pt-5 border-t border-white/[0.06] flex items-center justify-between text-xs text-slate-400">
                   <span>{item.detail}</span>
                   {i < 2 && (
-                    <ArrowRight className="hidden md:block h-4 w-4 text-slate-400 group-hover:translate-x-1 transition-transform" />
+                    <ArrowRight className="hidden md:block h-4 w-4 text-slate-500 group-hover:translate-x-1.5 transition-transform" />
                   )}
                 </div>
-              </div>
+              </motion.div>
             );
           })}
         </div>

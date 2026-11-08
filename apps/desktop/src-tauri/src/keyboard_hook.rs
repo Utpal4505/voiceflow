@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicPtr, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, Ordering};
 use std::sync::OnceLock;
 use tauri::{AppHandle, Emitter, Manager};
 use crate::window::{restore_foreground_window, AppState};
@@ -19,6 +19,16 @@ const WM_HOOK_DEACTIVATE: u32 = WM_USER + 102;
 static HOOK_THREAD_ID: AtomicU32 = AtomicU32::new(0);
 static APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
 static CURRENT_HOOK: AtomicPtr<std::ffi::c_void> = AtomicPtr::new(std::ptr::null_mut());
+pub static IS_OVERLAY_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+pub fn set_overlay_active(active: bool) {
+    IS_OVERLAY_ACTIVE.store(active, Ordering::SeqCst);
+    println!("[Rust Hook] set_overlay_active: {}", active);
+}
+
+pub fn is_overlay_active() -> bool {
+    IS_OVERLAY_ACTIVE.load(Ordering::SeqCst)
+}
 
 pub fn init_keyboard_hook(app: AppHandle) {
     let _ = APP_HANDLE.set(app);
@@ -73,6 +83,7 @@ pub fn init_keyboard_hook(app: AppHandle) {
 }
 
 pub fn set_hook_active(active: bool) {
+    IS_OVERLAY_ACTIVE.store(active, Ordering::SeqCst);
     let tid = HOOK_THREAD_ID.load(Ordering::SeqCst);
     println!("[Rust Hook] set_hook_active called with active: {}, thread_id: {}", active, tid);
     if tid != 0 {
@@ -99,6 +110,11 @@ unsafe extern "system" fn low_level_keyboard_proc(
     lparam: LPARAM,
 ) -> LRESULT {
     unsafe {
+        // Fast-path: Only intercept if the overlay is explicitly marked active
+        if !IS_OVERLAY_ACTIVE.load(Ordering::SeqCst) {
+            return CallNextHookEx(std::ptr::null_mut(), code, wparam, lparam);
+        }
+
         if code >= 0 {
             let msg = wparam as u32;
             if msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN {
@@ -106,42 +122,39 @@ unsafe extern "system" fn low_level_keyboard_proc(
                 let vk = kbd.vkCode as u16;
 
                 if vk == VK_RETURN {
-                    println!("[Rust Hook] VK_RETURN intercepted! Emitting overlay:submit");
                     if let Some(app) = APP_HANDLE.get() {
-                        let _ = app.emit("overlay:submit", ());
                         if let Some(overlay) = app.get_webview_window("overlay") {
-                            let _ = overlay.emit("overlay:submit", ());
+                            if crate::is_overlay_window_visible(&overlay) {
+                                println!("[Rust Hook] VK_RETURN intercepted while overlay is visible! Emitting overlay:submit");
+                                let _ = app.emit("overlay:submit", ());
+                                let _ = overlay.emit("overlay:submit", ());
+                                return 1; // Consume Enter key so it does not type newline into the active editor
+                            }
                         }
                     }
-                    return 1; // Consume Enter key so it does not type newline into the active editor
                 }
 
                 if vk == VK_ESCAPE {
-                    println!("[Rust Hook] VK_ESCAPE intercepted! Hiding overlay and restoring focus");
-                    let hook = CURRENT_HOOK.swap(std::ptr::null_mut(), Ordering::SeqCst);
-                    if !hook.is_null() {
-                        UnhookWindowsHookEx(hook as _);
-                    }
-
                     if let Some(app) = APP_HANDLE.get() {
-                        let _ = app.emit("overlay:hide", ());
                         if let Some(overlay) = app.get_webview_window("overlay") {
-                            let _ = overlay.emit("overlay:hide", ());
-                            use windows_sys::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_HIDE};
-                            if let Ok(hwnd) = overlay.hwnd() {
-                                ShowWindow(hwnd.0 as _, SW_HIDE);
-                            }
-                            let _ = overlay.hide();
-                        }
-                        let state = app.state::<AppState>();
-                        if let Ok(guard) = state.previous_hwnd.lock() {
-                            if let Some(hwnd) = *guard {
-                                println!("[Rust Hook] Restoring previous foreground window: {:x}", hwnd);
-                                restore_foreground_window(hwnd);
+                            if crate::is_overlay_window_visible(&overlay) {
+                                println!("[Rust Hook] VK_ESCAPE intercepted while overlay is visible! Hiding overlay and restoring focus");
+                                set_hook_active(false);
+
+                                let _ = app.emit("overlay:hide", ());
+                                let _ = overlay.emit("overlay:hide", ());
+                                crate::hide_overlay_window(&overlay);
+                                let state = app.state::<AppState>();
+                                if let Ok(mut guard) = state.previous_hwnd.lock() {
+                                    if let Some(hwnd) = guard.take() {
+                                        println!("[Rust Hook] Restoring previous foreground window: {:x}", hwnd);
+                                        restore_foreground_window(hwnd);
+                                    }
+                                }
+                                return 1; // Consume Escape key
                             }
                         }
                     }
-                    return 1; // Consume Escape key
                 }
             }
         }

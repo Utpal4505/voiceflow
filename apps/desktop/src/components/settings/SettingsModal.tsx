@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   Sparkles,
   AlertCircle,
+  Mic,
 } from "lucide-react";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { trackSettingsChanged } from "../../lib/telemetry";
@@ -40,11 +41,24 @@ export default function SettingsModal({
   hardwareProfile,
   onOpenUpdateModal,
 }: Props) {
-  const { telemetryEnabled, setTelemetryEnabled } = useSettingsStore();
+  const {
+    telemetryEnabled,
+    setTelemetryEnabled,
+    selectedDeviceId,
+    setSelectedDeviceId,
+    availableDevices,
+    refreshDevices,
+  } = useSettingsStore();
   const [updateStatus, setUpdateStatus] = useState<
     "idle" | "checking" | "up-to-date" | "available" | "error"
   >("idle");
   const [availableVersion, setAvailableVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      refreshDevices();
+    }
+  }, [isOpen, refreshDevices]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -204,6 +218,47 @@ export default function SettingsModal({
                     }`}
                   />
                 </button>
+              </div>
+
+              {/* Subtle Hairline Divider */}
+              <div className="h-[1px] bg-white/[0.04] mx-3.5" />
+
+              {/* Active Microphone Selector */}
+              <div className="flex flex-col gap-2 p-3.5">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#514BFA]/15 text-[#7772FF]">
+                    <Mic className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs font-medium text-slate-200">Active Microphone</span>
+                    <span className="text-[11px] text-slate-500">
+                      Audio input source for voice recognition
+                    </span>
+                  </div>
+                </div>
+
+                <div className="relative mt-1">
+                  <select
+                    value={selectedDeviceId}
+                    onChange={(e) => {
+                      setSelectedDeviceId(e.target.value);
+                      trackSettingsChanged("microphone_device", e.target.value);
+                    }}
+                    className="w-full appearance-none rounded-lg border border-white/[0.08] bg-[#12131D] px-3.5 py-2 text-xs text-slate-200 outline-none transition focus:border-[#514BFA]/80 cursor-pointer"
+                  >
+                    <option value="default">Default System Microphone</option>
+                    {availableDevices
+                      .filter((device) => device.deviceId !== "default")
+                      .map((device) => (
+                        <option key={device.deviceId} value={device.deviceId}>
+                          {device.label || `Microphone (${device.deviceId.slice(0, 8)})`}
+                        </option>
+                      ))}
+                  </select>
+                  <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                    <Sliders className="h-3.5 w-3.5" />
+                  </div>
+                </div>
               </div>
             </div>
           </div>

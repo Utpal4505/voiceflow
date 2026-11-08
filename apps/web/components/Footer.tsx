@@ -1,11 +1,15 @@
+"use client";
+
 import React from "react";
 import Image from "next/image";
+import { motion } from "framer-motion";
 import { Download, ArrowRight, Shield } from "lucide-react";
 
 function GithubIcon({ className = "h-4 w-4" }: { className?: string }) {
   return (
     <svg
       className={className}
+      style={{ width: "16px", height: "16px" }}
       width={16}
       height={16}
       fill="currentColor"
@@ -23,15 +27,21 @@ function GithubIcon({ className = "h-4 w-4" }: { className?: string }) {
 
 export default function Footer() {
   const downloadExeUrl =
-    "https://github.com/Utpal4505/voiceflow-releases/releases/latest/download/VoiceFlow_0.2.0_x64-setup.exe";
+    "https://github.com/Utpal4505/voiceflow/releases/latest/download/VoiceFlow_0.2.0_x64-setup.exe";
 
   return (
-    <footer className="border-t border-white/[0.08] bg-[#07080D]">
+    <footer className="border-t border-white/[0.08] bg-[#090A10]">
       {/* Pre-footer Call to Action Banner */}
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 sm:py-20">
-        <div className="relative overflow-hidden rounded-3xl border border-[#514BFA]/40 bg-gradient-to-b from-[#121426] to-[#0A0C16] p-8 sm:p-12 text-center shadow-[0_0_60px_-15px_rgba(81,75,250,0.3)]">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.96 }}
+          whileInView={{ opacity: 1, scale: 1 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.7 }}
+          className="relative overflow-hidden rounded-3xl border border-indigo-500/40 bg-gradient-to-b from-[#12152E] via-[#0E1022] to-[#0A0C16] p-8 sm:p-14 text-center shadow-[0_0_70px_-15px_rgba(81,75,250,0.35)]"
+        >
           {/* Subtle Ambient Radial Highlight */}
-          <div className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 h-64 w-96 rounded-full bg-[#514BFA]/20 blur-3xl" />
+          <div className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 h-64 w-96 rounded-full bg-[#514BFA]/25 blur-3xl" />
 
           <div className="relative z-10 max-w-2xl mx-auto space-y-4">
             <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-1 text-xs font-semibold text-emerald-300">
@@ -39,7 +49,7 @@ export default function Footer() {
               <span>100% Free & Open Source</span>
             </div>
 
-            <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white">
               Ready to type at the speed of thought?
             </h2>
 
@@ -48,32 +58,36 @@ export default function Footer() {
             </p>
 
             <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-4">
-              <a
+              <motion.a
                 href={downloadExeUrl}
                 download
-                className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-[#514BFA] to-[#7772FF] hover:from-[#4338CA] hover:to-[#514BFA] px-7 py-3.5 text-sm font-bold text-white shadow-lg shadow-[#514BFA]/30 hover:shadow-[#514BFA]/50 active:scale-95 transition-all cursor-pointer"
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-[#514BFA] via-[#635BFF] to-[#7772FF] px-7 py-4 text-sm font-bold text-white shadow-lg shadow-[#514BFA]/30 hover:shadow-[#514BFA]/50 transition-all cursor-pointer"
               >
                 <Download className="h-4 w-4" />
                 <span>Download VoiceFlow (.exe)</span>
                 <ArrowRight className="h-4 w-4 ml-1" />
-              </a>
+              </motion.a>
 
-              <a
+              <motion.a
                 href="https://github.com/Utpal4505/voiceflow"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 rounded-2xl border border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] px-6 py-3.5 text-sm font-semibold text-slate-200 hover:text-white transition-all cursor-pointer"
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                className="flex items-center gap-2 rounded-2xl border border-white/[0.12] bg-white/[0.04] hover:bg-white/[0.08] px-6 py-4 text-sm font-semibold text-slate-200 hover:text-white transition-all cursor-pointer"
               >
                 <GithubIcon className="h-4 w-4" />
                 <span>View on GitHub</span>
-              </a>
+              </motion.a>
             </div>
 
             <p className="text-[11px] text-slate-400 pt-2">
               Windows 11 / 10 • Single installer (~25 MB) • No account needed
             </p>
           </div>
-        </div>
+        </motion.div>
       </div>
 
       {/* Main Footer Links & Copyright */}
@@ -81,7 +95,7 @@ export default function Footer() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#514BFA]/20 border border-[#514BFA]/30">
-              <Image src="/logo.svg" alt="VoiceFlow" width={22} height={22} />
+              <Image src="/logo.svg" alt="VoiceFlow" width={22} height={22} style={{ width: "22px", height: "22px" }} />
             </div>
             <div>
               <span className="text-sm font-bold text-white">VoiceFlow</span>

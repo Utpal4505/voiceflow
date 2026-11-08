@@ -1,4 +1,7 @@
+"use client";
+
 import React from "react";
+import { motion } from "framer-motion";
 import { Check, X } from "lucide-react";
 
 export default function Comparison() {
@@ -42,31 +45,43 @@ export default function Comparison() {
   ];
 
   return (
-    <section id="comparison" className="py-20 border-t border-white/[0.06] bg-[#07080D]">
+    <section id="comparison" className="py-24 border-t border-white/[0.08] bg-[#090A10]">
       <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
-        <div className="text-center max-w-2xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+          className="text-center max-w-2xl mx-auto"
+        >
           <div className="inline-flex items-center gap-1.5 rounded-full border border-purple-500/30 bg-purple-500/10 px-3.5 py-1 text-xs font-semibold text-purple-300 mb-4">
             The Better Choice
           </div>
-          <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white">
             VoiceFlow vs. Cloud Dictation Services
           </h2>
           <p className="mt-4 text-sm sm:text-base text-slate-300">
             Why pay monthly subscription fees to companies that listen to your private audio when your CPU can do it for free?
           </p>
-        </div>
+        </motion.div>
 
         {/* Comparison Table Container */}
-        <div className="mt-14 overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0E101A] shadow-2xl">
+        <motion.div
+          initial={{ opacity: 0, y: 25 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.7, delay: 0.1 }}
+          className="mt-14 overflow-hidden rounded-3xl border border-white/[0.1] bg-[#0E101D] shadow-2xl"
+        >
           <div className="overflow-x-auto">
             <div className="min-w-[600px]">
               {/* Header Row */}
-              <div className="grid grid-cols-12 border-b border-white/[0.08] bg-[#121422] p-4 sm:p-5 text-xs sm:text-sm font-semibold">
+              <div className="grid grid-cols-12 border-b border-white/[0.08] bg-[#121528] p-4 sm:p-5 text-xs sm:text-sm font-semibold">
                 <div className="col-span-5 text-slate-300">Feature</div>
-                <div className="col-span-4 text-[#A5A0FF] flex items-center gap-2">
+                <div className="col-span-4 text-cyan-300 flex items-center gap-2">
                   <span className="h-2 w-2 rounded-full bg-[#514BFA]" />
                   <span>VoiceFlow</span>
-                  <span className="rounded bg-[#514BFA]/20 px-1.5 py-0.5 text-[10px] font-bold text-[#A5A0FF]">
+                  <span className="rounded bg-[#514BFA]/25 px-1.5 py-0.5 text-[10px] font-bold text-white border border-[#514BFA]/30">
                     Recommended
                   </span>
                 </div>
@@ -96,7 +111,7 @@ export default function Comparison() {
               </div>
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
     </section>
   );

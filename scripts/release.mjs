@@ -34,14 +34,22 @@ if (!signingKey) {
 }
 
 if (!signingKey) {
-  console.warn("⚠️ Warning: No signing key found. Builds will not be cryptographically signed for auto-updates.");
+  console.warn(
+    "⚠️ Warning: No signing key found. Builds will not be cryptographically signed for auto-updates.",
+  );
 } else {
   console.log("🔒 Signing key loaded successfully.");
 }
 
 // 2. Prepare standalone bundled backend and binaries in resources/
 console.log("\n📦 Bundling standalone backend and copying runtime binaries...");
-const resourcesDir = path.join(rootDir, "apps", "desktop", "src-tauri", "resources");
+const resourcesDir = path.join(
+  rootDir,
+  "apps",
+  "desktop",
+  "src-tauri",
+  "resources",
+);
 const resourcesBin = path.join(resourcesDir, "bin");
 const resourcesServer = path.join(resourcesDir, "server");
 
@@ -63,9 +71,12 @@ execSync("pnpm turbo run build --filter=!@voiceflow/web", { stdio: "inherit" });
 
 // Bundle NestJS server with all dependencies into self-contained ESM bundle
 console.log("\n⚡ Bundling NestJS backend with @vercel/ncc...");
-execSync(`pnpm dlx @vercel/ncc build apps/api/dist/main.js -o "${resourcesServer}" -m`, {
-  stdio: "inherit",
-});
+execSync(
+  `pnpm dlx @vercel/ncc build apps/api/dist/main.js -o "${resourcesServer}" -m`,
+  {
+    stdio: "inherit",
+  },
+);
 console.log("   ✓ NestJS backend bundled cleanly into resources/server/");
 
 // 3. Build and package signed Tauri desktop bundle
@@ -98,7 +109,7 @@ const nsisDir = path.join(
   "target",
   "release",
   "bundle",
-  "nsis"
+  "nsis",
 );
 
 const releaseDir = path.join(rootDir, "release");
@@ -145,7 +156,7 @@ if (fs.existsSync(sigPath)) {
   fs.writeFileSync(
     path.join(releaseDir, "latest.json"),
     JSON.stringify(manifest, null, 2),
-    "utf-8"
+    "utf-8",
   );
   console.log(`   ✓ latest.json (Auto-updater manifest)`);
 }
@@ -162,9 +173,11 @@ if (fs.existsSync(setupExe)) {
   try {
     execSync(
       `powershell -NoProfile -Command "Compress-Archive -Path '${setupExe}' -DestinationPath '${setupZip}' -Force"`,
-      { stdio: "ignore" }
+      { stdio: "ignore" },
     );
-    console.log(`   ✓ VoiceFlow_${version}_x64-setup.zip (Compressed setup archive)`);
+    console.log(
+      `   ✓ VoiceFlow_${version}_x64-setup.zip (Compressed setup archive)`,
+    );
   } catch {}
 }
 

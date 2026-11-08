@@ -62,54 +62,65 @@ Unlike cloud-dependent dictation services that charge \$15–\$30/month and beam
 
 Ready to run VoiceFlow immediately on Windows? Grab the signed release:
 
-| Package | Format | Description |
-| :--- | :--- | :--- |
+| Package                                                                                                                  | Format        | Description                                                                      |
+| :----------------------------------------------------------------------------------------------------------------------- | :------------ | :------------------------------------------------------------------------------- |
 | **[VoiceFlow Installer](https://github.com/Utpal4505/voiceflow/releases/latest/download/VoiceFlow_0.2.0_x64-setup.exe)** | `.exe` (NSIS) | **Recommended.** Full Windows installer with auto-updater and desktop shortcuts. |
-| **[VoiceFlow Portable](https://github.com/Utpal4505/voiceflow/releases/latest/download/VoiceFlow_0.2.0_x64-setup.zip)** | `.zip` | Portable archive. Extract and run anywhere without admin rights. |
+| **[VoiceFlow Portable](https://github.com/Utpal4505/voiceflow/releases/latest/download/VoiceFlow_0.2.0_x64-setup.zip)**  | `.zip`        | Portable archive. Extract and run anywhere without admin rights.                 |
 
 > [!NOTE]
-> **Windows SmartScreen Note**: Because VoiceFlow is an indie open-source application and has not purchased a \$500/yr enterprise EV code signing certificate, Windows Defender SmartScreen may show an *"Unrecognized app"* prompt on first launch. Click **"More info"** &rarr; **"Run anyway"**. VoiceFlow binaries are 100% open-source, reproducible, and verifiable.
+> **Windows SmartScreen Note**: Because VoiceFlow is an indie open-source application and has not purchased a \$500/yr enterprise EV code signing certificate, Windows Defender SmartScreen may show an _"Unrecognized app"_ prompt on first launch. Click **"More info"** &rarr; **"Run anyway"**. VoiceFlow binaries are 100% open-source, reproducible, and verifiable.
 
 ---
 
 ## ✨ Key Features
 
 ### 🎯 System-Wide Global Hotkey (`Ctrl + Space`)
+
 A low-level Windows keyboard hook (`WH_KEYBOARD_LL`) running at time-critical scheduling priority captures your hotkey globally across the entire operating system, instantly summoning the dictation HUD.
 
 ### 🪟 Non-Activating Translucent HUD (`WS_EX_NOACTIVATE`)
+
 Engineered with Win32 `WS_EX_NOACTIVATE` and `SW_SHOWNOACTIVATE`. When the floating HUD appears, your active editor, IDE, or chat box **never loses keyboard focus**. You see an animated voice-reactive waveform and live partial transcription without window blinking or focus hopping.
 
 ### ⚡ Direct Foreground Keystroke & Clipboard Paste
+
 - **Press <kbd>Enter</kbd>**: Dictation stops, audio finishes transcription, and text is automatically simulated into your active cursor position via Win32 `keybd_event` paste simulation.
 - **Press <kbd>Escape</kbd>**: Immediately aborts the session, discards audio buffers, and hides the overlay.
 
 ### 🛡️ 100% Offline & Air-Gapped Privacy
+
 - **Zero Cloud Egress**: All inference runs locally in RAM via OpenAI Whisper.
 - Works in complete **Airplane Mode** without an internet connection.
 - Ideal for software engineers handling proprietary codebases, doctors dealing with HIPAA-regulated records, lawyers, and writers under NDAs.
 
 ### 🧠 Hardware Profiling & Vector Acceleration
+
 - Automatically detects CPU instruction sets (**AVX2, AVX, FMA, SSE4.2**) and optimal thread counts.
 - Dynamically uses discrete **NVIDIA CUDA** acceleration when available, without prematurely waking mobile GPUs from D3Cold sleep (preventing battery drain and stutter).
 - Runs 3x faster than real-time speech on modern Intel Core and AMD Ryzen CPUs.
 
 ### 📦 Self-Contained Zero-Dependency Runtime
+
 Includes portable binaries for `whisper-cli.exe`, platform DLLs, and an embedded Node server runtime. **You do not need to install Node.js, Python, CUDA Toolkit, or Git** to use the application.
 
 ### 📚 In-App Whisper Model Manager
+
 Download, switch, and delete quantized Whisper GGML models directly from the UI with real-time download progress meters. Start with the lightning-fast `base.en-q5_0` (~85 MB) or scale up to `small.en` and `medium.en` for high-precision technical vocabulary.
 
 ### 📖 Custom Technical Vocabulary
+
 Inject custom technical acronyms, programming symbols, internal project codenames, or jargon into Whisper's initial prompt bias (e.g. `Kubernetes`, `GraphQL`, `OAuth2`, `Zod`, `Tauri`, `PostHog`).
 
 ### 📜 Searchable Local History & Performance Metrics
+
 View your past dictations, search by keyword, copy text with one click, and inspect real-time metrics including word count, latency (ms), and **Real-Time Factor (RTF)** benchmarks.
 
 ### 🔄 System Tray & Windows Autostart
+
 Closes silently to the Windows System Tray with quick controls. Enable "Launch on Windows Startup" to register with the Windows Registry (`HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`) for seamless, instant boot-to-dictate capability with ~80 MB idle RAM footprint.
 
 ### 🔐 Cryptographic Auto-Updater
+
 Tauri auto-updater secured with **Minisign public-key cryptography**. Securely updates directly from GitHub Releases without third-party intermediaries.
 
 ---
@@ -150,7 +161,7 @@ sequenceDiagram
     Overlay->>Overlay: Stream PCM audio via WebRTC/Microphone
     Overlay->>API: Socket.IO audio_chunk (seq, buffer)
     API-->>Overlay: Emits partial_transcript (throttled ~1200ms)
-    
+
     User->>Rust: Press Enter (or click Submit)
     Rust->>Overlay: Intercept Enter (prevent newline in target)
     Overlay->>API: Socket.IO session_stop
@@ -167,16 +178,16 @@ sequenceDiagram
 
 ## ⚖️ Comparison: VoiceFlow vs. Cloud SaaS
 
-| Feature | VoiceFlow | Cloud Dictation (Wispr Flow / Otter / Dragon) |
-| :--- | :---: | :---: |
-| **Pricing** | **100% Free & Open Source (MIT)** | \$12 – \$30 / month subscription |
-| **Audio Privacy** | **100% Local (Never leaves device)** | Streamed to remote cloud servers |
-| **Works Offline** | **Yes (Works in Airplane Mode)** | No (Fails without Wi-Fi) |
-| **System-Wide Hotkey** | **<kbd>Ctrl</kbd> + <kbd>Space</kbd> anywhere on Windows** | Often limited to web or proprietary apps |
-| **Target App Focus** | **Preserved (`WS_EX_NOACTIVATE`)** | Often steals active window focus |
-| **Data Retention** | **Zero audio cached or logged** | Transcripts stored & used for AI training |
-| **Engine Transparency**| **OpenAI Whisper (Auditable C++)** | Proprietary black-box cloud APIs |
-| **Startup Footprint** | **~80 MB idle RAM in Tray** | High RAM browser wrappers & daemons |
+| Feature                 |                         VoiceFlow                          | Cloud Dictation (Wispr Flow / Otter / Dragon) |
+| :---------------------- | :--------------------------------------------------------: | :-------------------------------------------: |
+| **Pricing**             |             **100% Free & Open Source (MIT)**              |       \$12 – \$30 / month subscription        |
+| **Audio Privacy**       |            **100% Local (Never leaves device)**            |       Streamed to remote cloud servers        |
+| **Works Offline**       |              **Yes (Works in Airplane Mode)**              |           No (Fails without Wi-Fi)            |
+| **System-Wide Hotkey**  | **<kbd>Ctrl</kbd> + <kbd>Space</kbd> anywhere on Windows** |   Often limited to web or proprietary apps    |
+| **Target App Focus**    |             **Preserved (`WS_EX_NOACTIVATE`)**             |       Often steals active window focus        |
+| **Data Retention**      |              **Zero audio cached or logged**               |   Transcripts stored & used for AI training   |
+| **Engine Transparency** |             **OpenAI Whisper (Auditable C++)**             |       Proprietary black-box cloud APIs        |
+| **Startup Footprint**   |                **~80 MB idle RAM in Tray**                 |      High RAM browser wrappers & daemons      |
 
 ---
 
@@ -184,33 +195,34 @@ sequenceDiagram
 
 VoiceFlow ships ready to download any official GGML Whisper model with single-click installation:
 
-| Model ID | Quantization | Disk Size | Speed | Accuracy | Memory (RAM) | Recommended Hardware |
-| :--- | :--- | :--- | :--- | :---: | :--- | :--- |
-| `tiny.en` | F16 | 75 MB | ⚡ Instant | ⭐⭐ | ~300 MB | Any CPU / Laptops |
-| `base.en-q5_0` | **Q5_0 (Quantized)** | **85 MB** | ⚡ **Instant** | ⭐⭐⭐ | **~350 MB** | **Default recommended for all PCs** |
-| `base.en` | F16 | 140 MB | 🚀 Very Fast | ⭐⭐⭐ | ~500 MB | Modern Quad-Core CPU or GPU |
-| `small.en-q5_1`| Q5_1 (Quantized) | 185 MB | 🚀 Fast | ⭐⭐⭐⭐ | ~700 MB | 6+ Core CPU or CUDA GPU |
-| `small.en` | F16 | 460 MB | ⏱️ Fast | ⭐⭐⭐⭐ | ~1.0 GB | Modern Multi-core CPU / Dedicated GPU |
-| `medium.en` | F16 | 1.5 GB | ⏳ Moderate | ⭐⭐⭐⭐⭐ | ~2.5 GB | High-end 8+ Core CPU or NVIDIA RTX |
-| `large-v3` | F16 | 3.1 GB | 🐢 Slow | ⭐⭐⭐⭐⭐ | ~4.5 GB | High-end NVIDIA GPU (CUDA) |
+| Model ID        | Quantization         | Disk Size | Speed          |  Accuracy  | Memory (RAM) | Recommended Hardware                  |
+| :-------------- | :------------------- | :-------- | :------------- | :--------: | :----------- | :------------------------------------ |
+| `tiny.en`       | F16                  | 75 MB     | ⚡ Instant     |    ⭐⭐    | ~300 MB      | Any CPU / Laptops                     |
+| `base.en-q5_0`  | **Q5_0 (Quantized)** | **85 MB** | ⚡ **Instant** |   ⭐⭐⭐   | **~350 MB**  | **Default recommended for all PCs**   |
+| `base.en`       | F16                  | 140 MB    | 🚀 Very Fast   |   ⭐⭐⭐   | ~500 MB      | Modern Quad-Core CPU or GPU           |
+| `small.en-q5_1` | Q5_1 (Quantized)     | 185 MB    | 🚀 Fast        |  ⭐⭐⭐⭐  | ~700 MB      | 6+ Core CPU or CUDA GPU               |
+| `small.en`      | F16                  | 460 MB    | ⏱️ Fast        |  ⭐⭐⭐⭐  | ~1.0 GB      | Modern Multi-core CPU / Dedicated GPU |
+| `medium.en`     | F16                  | 1.5 GB    | ⏳ Moderate    | ⭐⭐⭐⭐⭐ | ~2.5 GB      | High-end 8+ Core CPU or NVIDIA RTX    |
+| `large-v3`      | F16                  | 3.1 GB    | 🐢 Slow        | ⭐⭐⭐⭐⭐ | ~4.5 GB      | High-end NVIDIA GPU (CUDA)            |
 
 ---
 
 ## ⌨️ Global Shortcuts & Controls
 
-| Shortcut / Action | Scope | Description |
-| :--- | :--- | :--- |
-| <kbd>Ctrl</kbd> + <kbd>Space</kbd> | **Global (Windows)** | Summon VoiceFlow floating HUD and immediately start dictating. |
-| <kbd>Enter</kbd> | **Overlay Active** | Finish dictation, transcribe audio, and paste text directly into active application. |
-| <kbd>Escape</kbd> | **Overlay Active** | Cancel current dictation, discard audio, and restore window focus. |
-| **Close (`X`) on Window** | **Main App** | Minimizes cleanly to the Windows System Tray instead of terminating the app. |
-| **Tray Icon Click** | **System Tray** | Toggle VoiceFlow Dashboard between visible and minimized. |
+| Shortcut / Action                  | Scope                | Description                                                                          |
+| :--------------------------------- | :------------------- | :----------------------------------------------------------------------------------- |
+| <kbd>Ctrl</kbd> + <kbd>Space</kbd> | **Global (Windows)** | Summon VoiceFlow floating HUD and immediately start dictating.                       |
+| <kbd>Enter</kbd>                   | **Overlay Active**   | Finish dictation, transcribe audio, and paste text directly into active application. |
+| <kbd>Escape</kbd>                  | **Overlay Active**   | Cancel current dictation, discard audio, and restore window focus.                   |
+| **Close (`X`) on Window**          | **Main App**         | Minimizes cleanly to the Windows System Tray instead of terminating the app.         |
+| **Tray Icon Click**                | **System Tray**      | Toggle VoiceFlow Dashboard between visible and minimized.                            |
 
 ---
 
 ## 💻 Developer Setup & Monorepo Guide
 
 ### 🛠️ Prerequisites
+
 - **Operating System**: Windows 10/11 x64
 - **Node.js**: `v20.0.0` or higher ([nodejs.org](https://nodejs.org))
 - **Package Manager**: `pnpm` v9 or higher (`npm install -g pnpm`)
@@ -328,8 +340,8 @@ VoiceFlow was created specifically to escape telemetry-heavy, privacy-invasive c
   - Total latency and Real-Time Factor (RTF)
   - Selected model ID and hardware tier (CPU vs CUDA)
   - General crash reports
-  - *Strictly disabled*: Screen recordings, audio captures, text contents, IP addresses, and DOM click tracking are **permanently disabled**.
-- **1-Click Opt-Out**: Open **Settings &rarr; General** and toggle off *"Help improve VoiceFlow by sending anonymous performance metrics"*.
+  - _Strictly disabled_: Screen recordings, audio captures, text contents, IP addresses, and DOM click tracking are **permanently disabled**.
+- **1-Click Opt-Out**: Open **Settings &rarr; General** and toggle off _"Help improve VoiceFlow by sending anonymous performance metrics"_.
 
 ---
 

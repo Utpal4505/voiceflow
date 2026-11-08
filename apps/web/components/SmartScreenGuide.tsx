@@ -1,16 +1,25 @@
+"use client";
+
 import React from "react";
+import { motion } from "framer-motion";
 import { ShieldAlert, CheckCircle2, ExternalLink } from "lucide-react";
 
 export default function SmartScreenGuide() {
   return (
-    <section id="smartscreen" className="py-20 bg-[#07080D] border-t border-white/[0.06]">
+    <section id="smartscreen" className="py-24 bg-[#090A10] border-t border-white/[0.08]">
       <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
-        <div className="rounded-2xl border border-blue-500/30 bg-[#0E1326] p-6 sm:p-10 shadow-2xl relative overflow-hidden">
+        <motion.div
+          initial={{ opacity: 0, y: 25 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.7 }}
+          className="rounded-3xl border border-blue-500/30 bg-[#0E1328] p-6 sm:p-10 shadow-2xl relative overflow-hidden"
+        >
           {/* Subtle Ambient Glow */}
           <div className="pointer-events-none absolute -right-20 -bottom-20 h-64 w-64 rounded-full bg-blue-500/10 blur-3xl" />
 
           <div className="flex flex-col sm:flex-row items-start gap-5">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-inner">
               <ShieldAlert className="h-6 w-6" />
             </div>
 
@@ -19,7 +28,7 @@ export default function SmartScreenGuide() {
                 <h3 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
                   Seeing &quot;Windows protected your PC&quot;?
                 </h3>
-                <span className="rounded-md border border-blue-400/30 bg-blue-500/10 px-2.5 py-0.5 text-xs font-semibold text-blue-300">
+                <span className="rounded-full border border-blue-400/30 bg-blue-500/10 px-3 py-0.5 text-xs font-semibold text-blue-300">
                   Standard Windows SmartScreen
                 </span>
               </div>
@@ -30,7 +39,7 @@ export default function SmartScreenGuide() {
               </p>
 
               {/* Windows SmartScreen Mockup UI Box */}
-              <div className="rounded-xl border border-blue-400/20 bg-[#070A14] p-5 sm:p-6 space-y-4">
+              <div className="rounded-2xl border border-blue-400/20 bg-[#070A16] p-5 sm:p-6 space-y-4 shadow-inner">
                 <div className="flex items-center justify-between text-xs font-semibold text-blue-200">
                   <span>How to install in 2 clicks:</span>
                   <span className="font-mono text-[11px] text-slate-400">Windows Defender</span>
@@ -38,7 +47,7 @@ export default function SmartScreenGuide() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs sm:text-sm">
                   {/* Step 1 */}
-                  <div className="flex items-start gap-3 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+                  <div className="flex items-start gap-3 rounded-xl border border-white/[0.08] bg-white/[0.02] p-3.5">
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600/30 text-blue-300 font-bold text-xs">
                       1
                     </span>
@@ -51,7 +60,7 @@ export default function SmartScreenGuide() {
                   </div>
 
                   {/* Step 2 */}
-                  <div className="flex items-start gap-3 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+                  <div className="flex items-start gap-3 rounded-xl border border-white/[0.08] bg-white/[0.02] p-3.5">
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-600/30 text-emerald-300 font-bold text-xs">
                       2
                     </span>
@@ -83,7 +92,7 @@ export default function SmartScreenGuide() {
               </div>
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
     </section>
   );

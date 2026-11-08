@@ -5,6 +5,7 @@ import WaveformBars from "../components/overlay/WaveformBars";
 import { useAudio } from "../hooks/useAudio";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { useHistoryStore } from "../stores/historyStore";
+import { useSettingsStore } from "../stores/settingsStore";
 import VoiceFlowLogo from "../components/common/VoiceFlowLogo";
 import { Mic, Check, AlertCircle, Loader2 } from "lucide-react";
 import { trackDictationCompleted, trackInsertionFailed } from "../lib/telemetry";
@@ -17,6 +18,12 @@ export default function OverlayWindow() {
   const hasInsertedRef = useRef(false);
 
   const { addHistoryItem } = useHistoryStore();
+  const { initDeviceListener } = useSettingsStore();
+
+  useEffect(() => {
+    const unlisten = initDeviceListener();
+    return () => unlisten();
+  }, [initDeviceListener]);
 
   const {
     isConnected,

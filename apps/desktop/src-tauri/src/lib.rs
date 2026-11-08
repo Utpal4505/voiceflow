@@ -82,6 +82,27 @@ pub fn is_overlay_window_visible(overlay: &tauri::WebviewWindow) -> bool {
     overlay.is_visible().unwrap_or(false)
 }
 
+fn is_voiceflow_hwnd(app: &AppHandle, hwnd: isize) -> bool {
+    if hwnd == 0 {
+        return true;
+    }
+    if let Some(overlay) = app.get_webview_window("overlay") {
+        if let Ok(ohwnd) = overlay.hwnd() {
+            if ohwnd.0 as isize == hwnd {
+                return true;
+            }
+        }
+    }
+    if let Some(main_win) = app.get_webview_window("main") {
+        if let Ok(mhwnd) = main_win.hwnd() {
+            if mhwnd.0 as isize == hwnd {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 #[tauri::command]
 fn toggle_overlay(app: AppHandle) {
     if let Some(overlay) = app.get_webview_window("overlay") {
@@ -91,16 +112,34 @@ fn toggle_overlay(app: AppHandle) {
         if is_visible {
             #[cfg(target_os = "windows")]
             keyboard_hook::set_hook_active(false);
+            hide_overlay_window(&overlay);
+            let state = app.state::<AppState>();
+            if let Ok(mut guard) = state.previous_hwnd.lock() {
+                if let Some(hwnd) = guard.take() {
+                    if !is_voiceflow_hwnd(&app, hwnd) {
+                        println!("[Rust Overlay] Restoring foreground window on toggle: {:x}", hwnd);
+                        restore_foreground_window(hwnd);
+                    }
+                }
+            }
             let _ = overlay.emit("overlay:toggle", ());
             let _ = app.emit("overlay:toggle", ());
         } else {
             let state = app.state::<AppState>();
             let current_hwnd = get_foreground_window();
+
             if let Some(hwnd) = current_hwnd {
-                println!("[Rust Overlay] Captured foreground window before showing: {:x}", hwnd);
-            }
-            if let Ok(mut guard) = state.previous_hwnd.lock() {
-                *guard = current_hwnd;
+                if !is_voiceflow_hwnd(&app, hwnd) {
+                    println!("[Rust Overlay] Captured external foreground window before showing: {:x}", hwnd);
+                    if let Ok(mut guard) = state.previous_hwnd.lock() {
+                        *guard = Some(hwnd);
+                    }
+                } else {
+                    println!("[Rust Overlay] Active window is VoiceFlow itself, clearing previous_hwnd");
+                    if let Ok(mut guard) = state.previous_hwnd.lock() {
+                        *guard = None;
+                    }
+                }
             }
 
             #[cfg(target_os = "windows")]
@@ -123,11 +162,19 @@ fn show_overlay(app: AppHandle) {
     if let Some(overlay) = app.get_webview_window("overlay") {
         let state = app.state::<AppState>();
         let current_hwnd = get_foreground_window();
+
         if let Some(hwnd) = current_hwnd {
-            println!("[Rust Overlay] Captured foreground window: {:x}", hwnd);
-        }
-        if let Ok(mut guard) = state.previous_hwnd.lock() {
-            *guard = current_hwnd;
+            if !is_voiceflow_hwnd(&app, hwnd) {
+                println!("[Rust Overlay] Captured external foreground window: {:x}", hwnd);
+                if let Ok(mut guard) = state.previous_hwnd.lock() {
+                    *guard = Some(hwnd);
+                }
+            } else {
+                println!("[Rust Overlay] Active window is VoiceFlow itself, clearing previous_hwnd");
+                if let Ok(mut guard) = state.previous_hwnd.lock() {
+                    *guard = None;
+                }
+            }
         }
 
         #[cfg(target_os = "windows")]
@@ -143,17 +190,18 @@ fn show_overlay(app: AppHandle) {
 
 #[tauri::command]
 fn hide_overlay(app: AppHandle) {
+    println!("[Rust Overlay] hide_overlay command called");
+    #[cfg(target_os = "windows")]
+    keyboard_hook::set_hook_active(false);
+
     if let Some(overlay) = app.get_webview_window("overlay") {
-        if !is_overlay_window_visible(&overlay) {
-            return;
-        }
-        println!("[Rust Overlay] hide_overlay command called");
-        #[cfg(target_os = "windows")]
-        keyboard_hook::set_hook_active(false);
         hide_overlay_window(&overlay);
-        let state = app.state::<AppState>();
-        if let Ok(guard) = state.previous_hwnd.lock() {
-            if let Some(hwnd) = *guard {
+    }
+
+    let state = app.state::<AppState>();
+    if let Ok(mut guard) = state.previous_hwnd.lock() {
+        if let Some(hwnd) = guard.take() {
+            if !is_voiceflow_hwnd(&app, hwnd) {
                 println!("[Rust Overlay] Restoring foreground window: {:x}", hwnd);
                 restore_foreground_window(hwnd);
             }
@@ -193,8 +241,8 @@ fn insert_text(app: AppHandle, text: String) -> Result<(), String> {
     keyboard_hook::set_hook_active(false);
     let state = app.state::<AppState>();
     let previous_hwnd = {
-        let guard = state.previous_hwnd.lock().map_err(|e| e.to_string())?;
-        *guard
+        let mut guard = state.previous_hwnd.lock().map_err(|e| e.to_string())?;
+        guard.take()
     };
 
     if let Some(overlay) = app.get_webview_window("overlay") {
@@ -206,13 +254,18 @@ fn insert_text(app: AppHandle, text: String) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
 
     if let Some(hwnd) = previous_hwnd {
-        println!("[Rust Insert] Restoring foreground target window: {:x}", hwnd);
-        restore_foreground_window(hwnd);
+        if !is_voiceflow_hwnd(&app, hwnd) {
+            println!("[Rust Insert] Restoring foreground target window: {:x}", hwnd);
+            restore_foreground_window(hwnd);
+            std::thread::sleep(std::time::Duration::from_millis(60));
+            insertion::simulate_paste();
+            println!("[Rust Insert] simulate_paste completed successfully");
+        } else {
+            println!("[Rust Insert] Target window is VoiceFlow itself; skipping restore and paste simulation");
+        }
+    } else {
+        println!("[Rust Insert] No previous_hwnd captured; skipping restore and paste simulation");
     }
-
-    std::thread::sleep(std::time::Duration::from_millis(60));
-    insertion::simulate_paste();
-    println!("[Rust Insert] simulate_paste completed successfully");
 
     Ok(())
 }

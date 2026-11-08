@@ -305,11 +305,13 @@ export default function AudioStudio({
                 className="w-full appearance-none rounded-lg border border-white/[0.08] bg-[#0E1018] px-3.5 py-2 text-xs text-slate-200 outline-none transition focus:border-[#514BFA]/80 cursor-pointer"
               >
                 <option value="default">Default System Microphone</option>
-                {availableDevices.map((device) => (
-                  <option key={device.deviceId} value={device.deviceId}>
-                    {device.label || `Microphone (${device.deviceId.slice(0, 8)})`}
-                  </option>
-                ))}
+                {availableDevices
+                  .filter((device) => device.deviceId !== "default")
+                  .map((device) => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                      {device.label || `Microphone (${device.deviceId.slice(0, 8)})`}
+                    </option>
+                  ))}
               </select>
               <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
                 <Sliders className="h-3.5 w-3.5" />

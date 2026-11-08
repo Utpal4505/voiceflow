@@ -64,8 +64,8 @@ Ready to run VoiceFlow immediately on Windows? Grab the signed release:
 
 | Package                                                                                                                  | Format        | Description                                                                      |
 | :----------------------------------------------------------------------------------------------------------------------- | :------------ | :------------------------------------------------------------------------------- |
-| **[VoiceFlow Installer](https://github.com/Utpal4505/voiceflow/releases/latest/download/VoiceFlow_0.2.0_x64-setup.exe)** | `.exe` (NSIS) | **Recommended.** Full Windows installer with auto-updater and desktop shortcuts. |
-| **[VoiceFlow Portable](https://github.com/Utpal4505/voiceflow/releases/latest/download/VoiceFlow_0.2.0_x64-setup.zip)**  | `.zip`        | Portable archive. Extract and run anywhere without admin rights.                 |
+| **[VoiceFlow Installer](https://github.com/Utpal4505/voiceflow-releases/releases/latest/download/VoiceFlow-Setup.exe)** | `.exe` (NSIS) | **Recommended.** Full Windows installer with auto-updater and desktop shortcuts. |
+| **[VoiceFlow Portable](https://github.com/Utpal4505/voiceflow-releases/releases/latest/download/VoiceFlow_0.2.4_x64-setup.zip)**  | `.zip`        | Portable archive. Extract and run anywhere without admin rights.                 |
 
 > [!NOTE]
 > **Windows SmartScreen Note**: Because VoiceFlow is an indie open-source application and has not purchased a \$500/yr enterprise EV code signing certificate, Windows Defender SmartScreen may show an _"Unrecognized app"_ prompt on first launch. Click **"More info"** &rarr; **"Run anyway"**. VoiceFlow binaries are 100% open-source, reproducible, and verifiable.

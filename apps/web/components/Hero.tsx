@@ -56,9 +56,9 @@ export default function Hero() {
   const [copiedWinget, setCopiedWinget] = useState(false);
 
   const downloadExeUrl =
-    "https://github.com/Utpal4505/voiceflow/releases/latest/download/VoiceFlow_0.2.0_x64-setup.exe";
+    "https://github.com/Utpal4505/voiceflow-releases/releases/latest/download/VoiceFlow-Setup.exe";
   const downloadZipUrl =
-    "https://github.com/Utpal4505/voiceflow/releases/latest/download/VoiceFlow_0.2.0_x64-setup.zip";
+    "https://github.com/Utpal4505/voiceflow-releases/releases/latest/download/VoiceFlow_0.2.4_x64-setup.zip";
 
   const wingetCmd = "winget install Utpal.VoiceFlow";
 

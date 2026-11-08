@@ -87,8 +87,7 @@ export default function SettingsModal({
       }
     } catch (err) {
       console.warn("[Updater] Manual check error:", err);
-      // Clean fallback for browser / development preview
-      setUpdateStatus("up-to-date");
+      setUpdateStatus("error");
       setTimeout(() => {
         setUpdateStatus("idle");
       }, 3500);

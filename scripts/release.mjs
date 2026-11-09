@@ -60,7 +60,20 @@ fs.mkdirSync(resourcesServer, { recursive: true });
 const binDir = path.join(rootDir, "bin");
 if (fs.existsSync(binDir)) {
   for (const file of fs.readdirSync(binDir)) {
-    fs.copyFileSync(path.join(binDir, file), path.join(resourcesBin, file));
+    const src = path.join(binDir, file);
+    const dest = path.join(resourcesBin, file);
+    try {
+      if (fs.existsSync(dest) && fs.statSync(src).size === fs.statSync(dest).size) {
+        continue;
+      }
+      fs.copyFileSync(src, dest);
+    } catch (err) {
+      if (err.code === "EBUSY" || err.code === "EPERM") {
+        console.log(`   ℹ️ ${file} is currently locked or in use; skipped as already present.`);
+      } else {
+        throw err;
+      }
+    }
   }
   console.log("   ✓ Runtime binaries synced to resources/bin/");
 }

@@ -8,10 +8,11 @@ import Comparison from "@/components/Comparison";
 import SmartScreenGuide from "@/components/SmartScreenGuide";
 import Faq from "@/components/Faq";
 import Footer from "@/components/Footer";
+import DownloadToast from "@/components/DownloadToast";
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-[#090A10] text-slate-100 flex flex-col selection:bg-[#514BFA]/40 selection:text-white">
+    <main className="min-h-screen bg-[#212121] text-white flex flex-col selection:bg-[#FF5722]/25 selection:text-[#FF5722]">
       <Navbar />
       <div className="flex-1">
         <Hero />
@@ -23,6 +24,7 @@ export default function Home() {
         <Faq />
       </div>
       <Footer />
+      <DownloadToast />
     </main>
   );
 }

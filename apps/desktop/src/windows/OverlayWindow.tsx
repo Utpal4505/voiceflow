@@ -258,50 +258,53 @@ export default function OverlayWindow() {
   }, []);
 
   return (
-    <div className="flex h-screen w-screen items-center justify-center p-2 select-none font-sans overflow-hidden bg-transparent">
-      {/* Floating Dynamic Capsule Pill */}
-      <div className="flex w-full max-w-[440px] items-center justify-between rounded-full border border-white/[0.12] bg-[#0E1017]/96 px-4 py-2.5 shadow-[0_20px_50px_rgba(0,0,0,0.85),0_0_20px_rgba(255,99,56,0.15)] backdrop-blur-2xl">
+    <div
+      style={{ backgroundColor: "transparent" }}
+      className="flex h-screen w-screen items-center justify-center p-2 select-none font-sans overflow-hidden bg-transparent"
+    >
+      {/* Floating Dynamic Capsule Pill (Uses exact VoiceFlow Design Token System) */}
+      <div className="vf-hud-container w-full max-w-[440px] justify-between">
         {/* VoiceFlow Brand Mark / State Orb */}
-        <div className="relative flex h-8 w-8 shrink-0 items-center justify-center">
+        <div className="relative flex h-7 w-7 shrink-0 items-center justify-center">
           {sessionState === "recording" ? (
-            <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-[#FF6338] shadow-md shadow-[#FF6338]/40">
+            <div className="vf-mic-badge">
               <span
-                className="absolute -inset-1 rounded-full bg-[#FF6338]/50 blur-[3px] transition-opacity duration-150 animate-pulse"
+                className="absolute -inset-1 rounded-full bg-[#FF5722]/50 blur-[3px] transition-opacity duration-150 animate-pulse"
                 style={{ opacity: Math.max(0.3, volume * 1.8) }}
               />
               <Mic className="h-3.5 w-3.5 text-white relative z-10" />
             </div>
           ) : sessionState === "processing" ? (
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600">
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#FF5722] shadow-[0_0_15px_rgba(255,87,34,0.6)]">
               <Loader2 className="h-3.5 w-3.5 text-white animate-spin" />
             </div>
           ) : sessionState === "done" ? (
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500">
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#10B981] shadow-[0_0_15px_rgba(16,185,129,0.5)]">
               <Check className="h-3.5 w-3.5 text-white stroke-[3]" />
             </div>
           ) : sessionState === "error" ? (
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-600">
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-red-600 shadow-[0_0_15px_rgba(239,68,68,0.5)]">
               <AlertCircle className="h-3.5 w-3.5 text-white" />
             </div>
           ) : (
-            <VoiceFlowLogo className="h-7 w-7 rounded-lg shadow-sm" />
+            <VoiceFlowLogo className="h-6 w-6 rounded-lg shadow-sm" />
           )}
         </div>
 
         {/* Dynamic Waveform & Live Text Display */}
-        <div className="flex flex-1 items-center gap-3 px-3 overflow-hidden">
+        <div className="flex flex-1 items-center gap-3 px-2 overflow-hidden">
           {sessionState === "recording" && (
             <div className="shrink-0">
-              <WaveformBars volume={volume} isRecording={isRecording} barCount={12} />
+              <WaveformBars volume={volume} isRecording={isRecording} barCount={12} accent="coral" />
             </div>
           )}
 
           <div className="flex flex-1 items-center truncate">
             <span className="truncate text-xs font-medium tracking-tight">
               {sessionState === "processing" ? (
-                <span className="text-[#FF6338]">Transcribing with Whisper…</span>
+                <span className="text-[#FF8A65] font-semibold">Transcribing with Whisper…</span>
               ) : sessionState === "done" ? (
-                <span className="text-emerald-400">
+                <span className="text-[#10B981] font-semibold">
                   {transcript?.text ? `Inserting: "${transcript.text}"` : "Done!"}
                 </span>
               ) : sessionState === "error" || sessionError || audioError ? (
@@ -309,7 +312,7 @@ export default function OverlayWindow() {
                   {sessionError || audioError || "Engine error"}
                 </span>
               ) : transcript?.text ? (
-                <span className="text-white">{transcript.text}</span>
+                <span className="text-white font-medium">{transcript.text}</span>
               ) : isSilent ? (
                 <span className="text-amber-400">⚠️ No sound — check mic</span>
               ) : !isConnected ? (
@@ -321,22 +324,22 @@ export default function OverlayWindow() {
           </div>
         </div>
 
-        {/* Minimal Keyboard Shortcuts */}
+        {/* Tactile Keycap Actions */}
         <div className="flex items-center gap-1.5 shrink-0">
           {sessionState === "recording" && (
             <>
               <button
                 onClick={handleSubmit}
-                className="flex items-center gap-1 rounded-full bg-white/[0.08] hover:bg-white/[0.14] px-2.5 py-1 text-[11px] font-medium text-slate-200 transition cursor-pointer active:scale-95"
-                title="Finish & Insert"
+                className="vf-keycap cursor-pointer flex items-center gap-1 hover:border-white/30"
+                title="Finish & Insert (Enter)"
               >
                 <span>Enter</span>
-                <kbd className="font-mono text-[9px] text-slate-400">↵</kbd>
+                <span className="font-mono text-[10px] text-slate-300">↵</span>
               </button>
               <button
                 onClick={handleClose}
-                className="rounded-full bg-white/[0.04] hover:bg-white/[0.1] px-2 py-1 text-[11px] font-medium text-slate-400 hover:text-white transition cursor-pointer active:scale-95"
-                title="Cancel"
+                className="rounded-md border border-white/10 bg-transparent hover:bg-white/10 px-2 py-0.5 text-[11px] font-medium text-slate-400 hover:text-white transition cursor-pointer active:scale-95"
+                title="Cancel (Esc)"
               >
                 Esc
               </button>
@@ -346,7 +349,7 @@ export default function OverlayWindow() {
           {sessionState === "done" && (
             <button
               onClick={() => transcript?.text && handleInsert(transcript.text)}
-              className="rounded-full bg-emerald-500 hover:bg-emerald-600 px-3 py-1 text-[11px] font-medium text-white transition cursor-pointer active:scale-95"
+              className="rounded-md bg-[#10B981] hover:bg-emerald-600 px-3 py-1 text-[11px] font-semibold text-white shadow-md shadow-emerald-500/30 transition cursor-pointer active:scale-95"
             >
               Insert ↵
             </button>
@@ -355,7 +358,7 @@ export default function OverlayWindow() {
           {sessionState === "error" && (
             <button
               onClick={handleStartRecording}
-              className="rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-medium text-white transition hover:bg-red-500 cursor-pointer active:scale-95"
+              className="rounded-md bg-red-600 px-2.5 py-1 text-[11px] font-semibold text-white shadow-md shadow-red-500/30 transition hover:bg-red-500 cursor-pointer active:scale-95"
             >
               Retry
             </button>

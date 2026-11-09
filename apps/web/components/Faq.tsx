@@ -7,27 +7,27 @@ import { ChevronDown, HelpCircle } from "lucide-react";
 const FAQS = [
   {
     q: "Does VoiceFlow require an active internet connection?",
-    a: "No! Once VoiceFlow downloads the lightweight base AI model (~140 MB) on your initial launch, it works 100% offline. You can dictate seamlessly on airplanes, trains, or in high-security facilities with zero Wi-Fi.",
+    a: "No! Once VoiceFlow initializes the lightweight base AI model (~140 MB) on your initial launch, it runs 100% offline. You can dictate seamlessly on airplanes, remote locations, or in high-security facilities with zero Wi-Fi.",
   },
   {
     q: "Which Windows applications can I dictate into?",
-    a: "Every single one! Because VoiceFlow simulates native Windows keyboard keystrokes using a low-level hook, you can dictate into Notepad, Google Chrome, Microsoft Word, Slack, VS Code, Cursor, Discord, WhatsApp Desktop, Notion, and PowerShell terminal consoles.",
+    a: "Every single one! Because VoiceFlow simulates native Windows keyboard keystrokes via low-level input hooks, you can dictate directly into Notepad, Google Chrome, Microsoft Word, Slack, VS Code, Discord, Notion, and PowerShell terminal consoles.",
   },
   {
     q: "Is my microphone audio or voice data ever stored or recorded?",
-    a: "Never. Your microphone audio is processed strictly in RAM by local OpenAI Whisper and immediately discarded after transcription. No audio files or transcript logs are saved to your drive, and zero bytes leave your computer.",
+    a: "Never. Your microphone audio is processed strictly in volatile CPU RAM by the local vector engine and is wiped immediately after transcription. No audio recordings or transcript logs are ever saved to external servers or your hard drive.",
   },
   {
     q: "What are the hardware and system requirements?",
-    a: "VoiceFlow runs on 64-bit Windows 10 or Windows 11 with at least 4 GB of RAM. Any modern Intel or AMD CPU with AVX/AVX2 support (manufactured after 2013) will run VoiceFlow smoothly without requiring a dedicated GPU.",
+    a: "VoiceFlow runs on 64-bit Windows 10 or Windows 11 with at least 4 GB of RAM. Any modern Intel or AMD CPU with AVX/AVX2 support (manufactured after 2013) runs VoiceFlow in real-time without requiring an expensive dedicated GPU.",
   },
   {
-    q: "How do in-app updates work?",
-    a: "VoiceFlow features an automated, cryptographically signed updater. It checks your GitHub Releases repository in the background at most once every 12 hours. When an update is published, a small prompt lets you update and restart with a single click.",
+    q: "How does VoiceFlow avoid stealing window focus?",
+    a: "VoiceFlow utilizes the native Windows WS_EX_NOACTIVATE window style. The stealth HUD floats right above your cursor without switching active window focus, minimizing full-screen apps, or interrupting your typing flow.",
   },
   {
-    q: "Can I customize the hotkey shortcut?",
-    a: "By default, VoiceFlow uses Ctrl + Space because it is fast, ergonomic, and does not conflict with standard Windows shortcuts. Custom hotkey rebinding is scheduled for an upcoming release.",
+    q: "Can I customize the hotkey and add technical vocabulary?",
+    a: "By default, VoiceFlow uses Ctrl + Space because it is fast, ergonomic, and does not conflict with standard Windows shortcuts. You can also add proprietary acronyms, technical terms, and client names inside the Vocabulary manager for 100% spelling precision.",
   },
 ];
 
@@ -39,28 +39,50 @@ export default function Faq() {
   };
 
   return (
-    <section id="faq" className="py-24 bg-[#090A10] border-t border-white/[0.08]">
-      <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
+    <section
+      id="faq"
+      className="py-20 sm:py-28 bg-[#212121] relative overflow-hidden"
+      style={{
+        backgroundImage: `radial-gradient(circle, rgba(255, 255, 255, 0.05) 1px, transparent 1px)`,
+        backgroundSize: "28px 28px",
+      }}
+    >
+      <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 relative">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
+          transition={{ duration: 0.5 }}
           className="text-center max-w-xl mx-auto"
         >
-          <div className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.04] px-3.5 py-1 text-xs font-semibold text-slate-300 mb-4">
-            <HelpCircle className="h-3.5 w-3.5 text-cyan-300" />
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3.5 py-1 text-xs font-semibold text-slate-300 mb-4 shadow-sm backdrop-blur-md">
+            <HelpCircle className="h-3.5 w-3.5 text-[#FACC15]" />
             <span>Common Questions</span>
           </div>
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white">
-            Frequently Asked Questions
+
+          <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-white leading-[1.15]">
+            Frequently Asked{" "}
+            <span className="relative inline-block">
+              Questions.
+              {/* Architectural Curiosity Accent (Handcrafted Gentle Floating Sparkle) */}
+              <motion.span
+                initial={{ opacity: 0, rotate: -25, scale: 0.5 }}
+                whileInView={{ opacity: 1, rotate: 0, scale: 1 }}
+                viewport={{ once: true }}
+                transition={{ type: "spring", stiffness: 340, damping: 16, delay: 0.25 }}
+                className="inline-block ml-1.5 text-[#FACC15] select-none text-2xl sm:text-4xl align-middle"
+              >
+                ✦
+              </motion.span>
+            </span>
           </h2>
-          <p className="mt-4 text-sm text-slate-400">
+
+          <p className="mt-4 text-base sm:text-lg text-slate-400 leading-relaxed">
             Everything you need to know about VoiceFlow privacy, offline AI, and performance.
           </p>
         </motion.div>
 
-        <div className="mt-14 space-y-3">
+        <div className="mt-14 space-y-3.5">
           {FAQS.map((faq, i) => {
             const isOpen = openIndex === i;
             return (
@@ -70,17 +92,17 @@ export default function Faq() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.4, delay: i * 0.05 }}
-                className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0E101D] transition-all duration-200 hover:border-white/[0.15]"
+                className="overflow-hidden rounded-2xl border border-white/10 bg-[#181818] transition-all duration-200 hover:border-white/20 shadow-sm"
               >
                 <button
                   onClick={() => toggle(i)}
-                  className="flex w-full items-center justify-between p-5 text-left text-sm font-semibold text-white hover:text-cyan-300 transition-colors cursor-pointer"
+                  className="flex w-full items-center justify-between p-5 text-left text-sm font-bold text-white hover:text-white transition-colors cursor-pointer"
                   aria-expanded={isOpen}
                 >
                   <span className="pr-4">{faq.q}</span>
                   <ChevronDown
                     className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 ${
-                      isOpen ? "rotate-180 text-cyan-300" : ""
+                      isOpen ? "rotate-180 text-white" : ""
                     }`}
                   />
                 </button>
@@ -92,7 +114,7 @@ export default function Faq() {
                       animate={{ opacity: 1, height: "auto" }}
                       exit={{ opacity: 0, height: 0 }}
                       transition={{ duration: 0.25 }}
-                      className="px-5 pb-5 text-xs sm:text-sm text-slate-300 leading-relaxed border-t border-white/[0.04] pt-3 overflow-hidden"
+                      className="px-5 pb-5 text-xs sm:text-sm text-slate-300 leading-relaxed border-t border-white/5 pt-3 overflow-hidden"
                     >
                       {faq.a}
                     </motion.div>

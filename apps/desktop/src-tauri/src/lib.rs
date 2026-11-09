@@ -21,12 +21,49 @@ pub(crate) fn trigger_toggle_overlay(app: AppHandle) {
 #[cfg(target_os = "windows")]
 fn make_window_non_activating(hwnd: isize) {
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_NOACTIVATE,
+        GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, WS_EX_NOACTIVATE,
+        WS_EX_LAYERED, SWP_FRAMECHANGED, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
     };
+    use windows_sys::Win32::Graphics::Dwm::{
+        DwmSetWindowAttribute, DWMWA_BORDER_COLOR, DWMWA_WINDOW_CORNER_PREFERENCE,
+    };
+
     unsafe {
         let ex_style = GetWindowLongPtrW(hwnd as _, GWL_EXSTYLE);
-        SetWindowLongPtrW(hwnd as _, GWL_EXSTYLE, ex_style | (WS_EX_NOACTIVATE as isize));
-        println!("[Rust Window] Window configured with WS_EX_NOACTIVATE (hwnd: {:x})", hwnd);
+        SetWindowLongPtrW(
+            hwnd as _,
+            GWL_EXSTYLE,
+            ex_style | (WS_EX_NOACTIVATE as isize) | (WS_EX_LAYERED as isize),
+        );
+        SetWindowPos(
+            hwnd as _,
+            0 as _,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED,
+        );
+
+        // 1. Remove Windows 11 window border (0xFFFFFFFE is DWMWA_COLOR_NONE)
+        let border_color: u32 = 0xFFFFFFFE;
+        let _ = DwmSetWindowAttribute(
+            hwnd as _,
+            DWMWA_BORDER_COLOR as u32,
+            &border_color as *const _ as *const std::ffi::c_void,
+            std::mem::size_of::<u32>() as u32,
+        );
+
+        // 2. Prevent Windows 11 from rounding outer box (1 is DWMWCP_DONOTROUND)
+        let corner_pref: u32 = 1;
+        let _ = DwmSetWindowAttribute(
+            hwnd as _,
+            DWMWA_WINDOW_CORNER_PREFERENCE as u32,
+            &corner_pref as *const _ as *const std::ffi::c_void,
+            std::mem::size_of::<u32>() as u32,
+        );
+
+        println!("[Rust Window] Window configured with WS_EX_NOACTIVATE, WS_EX_LAYERED, DWMWA_COLOR_NONE, DWMWCP_DONOTROUND (hwnd: {:x})", hwnd);
     }
 }
 
@@ -34,6 +71,7 @@ fn make_window_non_activating(hwnd: isize) {
 pub fn show_overlay_window(overlay: &tauri::WebviewWindow) {
     use windows_sys::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_SHOWNOACTIVATE};
     if let Ok(hwnd) = overlay.hwnd() {
+        make_window_non_activating(hwnd.0 as isize);
         unsafe {
             ShowWindow(hwnd.0 as _, SW_SHOWNOACTIVATE);
         }
@@ -270,6 +308,11 @@ fn insert_text(app: AppHandle, text: String) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "windows")]
+    unsafe {
+        std::env::set_var("WEBVIEW2_DEFAULT_BACKGROUND_COLOR", "0");
+    }
+
     tauri::Builder::default()
         .manage(AppState::default())
         .plugin(tauri_plugin_opener::init())
@@ -308,11 +351,12 @@ pub fn run() {
             }
 
             if let Some(overlay) = app.get_webview_window("overlay") {
+                let _ = overlay.set_shadow(false);
                 #[cfg(target_os = "windows")]
                 if let Ok(hwnd) = overlay.hwnd() {
                     make_window_non_activating(hwnd.0 as isize);
 
-                    // Remove native Windows 11 DWM borders on the transparent overlay window
+                    // Remove native Windows 11 DWM borders and rectangular frames on the transparent overlay window
                     use windows_sys::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_BORDER_COLOR};
                     unsafe {
                         // 0xFFFFFFFE is DWMWA_COLOR_NONE (disables the window border in Windows 11)

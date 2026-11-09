@@ -174,15 +174,15 @@ export default function UpdateModal({ currentVersion = "v0.1.0", triggerCheckRef
     <>
       {/* Main Update Modal Dialog */}
       {isOpen && availableUpdate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
-          <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-[#7772FF]/30 bg-[#121422] shadow-[0_0_50px_rgba(81,75,250,0.15)]">
-            {/* Ambient Violet Glow */}
-            <div className="pointer-events-none absolute -top-24 left-1/2 h-48 w-72 -translate-x-1/2 rounded-full bg-[#514BFA]/20 blur-3xl" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-in fade-in duration-150">
+          <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-white/[0.1] bg-[#181818]/98 shadow-[0_24px_70px_rgba(0,0,0,0.85)] font-sans">
+            {/* Ambient Coral Glow */}
+            <div className="pointer-events-none absolute -top-24 left-1/2 h-48 w-72 -translate-x-1/2 rounded-full bg-[#FF5722]/15 blur-3xl" />
 
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-white/[0.08] p-5">
+            <div className="flex items-center justify-between border-b border-white/[0.08] p-5 bg-[#141414]">
               <div className="flex items-center gap-2.5">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#514BFA]/20 text-[#A5A0FF] border border-[#514BFA]/30 shadow-inner">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#FF5722]/20 text-[#FF7A50] border border-[#FF5722]/30 shadow-inner">
                   <Sparkles className="h-4 w-4 animate-pulse" />
                 </div>
                 <div>
@@ -203,7 +203,7 @@ export default function UpdateModal({ currentVersion = "v0.1.0", triggerCheckRef
             {/* Content Body */}
             <div className="p-5 space-y-4">
               {/* Version Comparison Card */}
-              <div className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-[#0A0B10] p-3.5">
+              <div className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-[#141414] p-3.5 shadow-inner">
                 <div className="flex items-center gap-2">
                   <Laptop className="h-4 w-4 text-slate-500" />
                   <span className="text-xs text-slate-400">Current:</span>
@@ -220,7 +220,7 @@ export default function UpdateModal({ currentVersion = "v0.1.0", triggerCheckRef
 
               {/* Release Notes */}
               {availableUpdate.body && (
-                <div className="rounded-xl border border-white/[0.06] bg-[#0A0B10] p-3.5">
+                <div className="rounded-xl border border-white/[0.06] bg-[#141414] p-3.5 shadow-inner">
                   <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
                     What's New
                   </p>
@@ -232,9 +232,9 @@ export default function UpdateModal({ currentVersion = "v0.1.0", triggerCheckRef
 
               {/* Download Progress Bar */}
               {status === "downloading" && (
-                <div className="space-y-2 rounded-xl border border-[#514BFA]/20 bg-[#514BFA]/5 p-3.5">
+                <div className="space-y-2 rounded-xl border border-[#FF5722]/20 bg-[#FF5722]/5 p-3.5">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium text-[#A5A0FF] flex items-center gap-2">
+                    <span className="font-medium text-[#FF7A50] flex items-center gap-2">
                       <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                       Downloading update package...
                     </span>
@@ -242,7 +242,7 @@ export default function UpdateModal({ currentVersion = "v0.1.0", triggerCheckRef
                   </div>
                   <div className="h-2 w-full overflow-hidden rounded-full bg-white/[0.08]">
                     <div
-                      className="h-full bg-gradient-to-r from-[#514BFA] to-purple-500 transition-all duration-200"
+                      className="h-full bg-gradient-to-r from-[#FF5722] to-[#FF7A50] transition-all duration-200"
                       style={{ width: `${downloadPercent}%` }}
                     />
                   </div>
@@ -270,7 +270,7 @@ export default function UpdateModal({ currentVersion = "v0.1.0", triggerCheckRef
             </div>
 
             {/* Footer Actions */}
-            <div className="flex items-center justify-end gap-2.5 border-t border-white/[0.08] bg-[#0E1018] p-4">
+            <div className="flex items-center justify-end gap-2.5 border-t border-white/[0.08] bg-[#141414] p-4">
               {status !== "downloading" && status !== "ready" && (
                 <button
                   onClick={() => setIsOpen(false)}
@@ -284,7 +284,7 @@ export default function UpdateModal({ currentVersion = "v0.1.0", triggerCheckRef
                 <button
                   onClick={handleStartUpdate}
                   disabled={status === "downloading"}
-                  className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#514BFA] to-[#7772FF] px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-[#514BFA]/30 hover:opacity-95 active:scale-95 disabled:opacity-50 transition cursor-pointer"
+                  className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#FF5722] to-[#FF6347] px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-[#FF5722]/35 hover:opacity-95 active:scale-95 disabled:opacity-50 transition cursor-pointer"
                 >
                   {status === "downloading" ? (
                     <>

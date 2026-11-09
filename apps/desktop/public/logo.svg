@@ -1,49 +1,57 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="366 110 804 770" width="804" height="770">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="346 90 844 810" width="844" height="810">
   <defs>
     <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#1a1a22"/>
-      <stop offset="0.55" stop-color="#08080c"/>
-      <stop offset="1" stop-color="#1a1a40"/>
+      <stop offset="0" stop-color="#212121"/>
+      <stop offset="0.55" stop-color="#181818"/>
+      <stop offset="1" stop-color="#16171d"/>
     </linearGradient>
+    <linearGradient id="tileEdge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.20"/>
+      <stop offset="0.4" stop-color="#ffffff" stop-opacity="0.06"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.04"/>
+    </linearGradient>
+    <!-- Coral family built around #ff5722 -->
     <linearGradient id="ribbon" x1="0.1" y1="0" x2="0.7" y2="1">
-      <stop offset="0" stop-color="#a5a3ff"/>
-      <stop offset="0.5" stop-color="#7a76fb"/>
-      <stop offset="1" stop-color="#6360f5"/>
+      <stop offset="0" stop-color="#ff9a73"/>
+      <stop offset="0.5" stop-color="#ff6d3f"/>
+      <stop offset="1" stop-color="#ff5722"/>
     </linearGradient>
     <linearGradient id="arm" x1="0.2" y1="1" x2="0.8" y2="0">
-      <stop offset="0" stop-color="#4a4ae6"/>
-      <stop offset="1" stop-color="#6f8cff"/>
+      <stop offset="0" stop-color="#f4511e"/>
+      <stop offset="1" stop-color="#ff7a4d"/>
     </linearGradient>
     <linearGradient id="fold" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#2a2a9e"/>
-      <stop offset="1" stop-color="#4a58ec"/>
+      <stop offset="0" stop-color="#a8340d"/>
+      <stop offset="1" stop-color="#e64a19"/>
     </linearGradient>
     <linearGradient id="blade" x1="0.3" y1="1" x2="0.5" y2="0">
-      <stop offset="0" stop-color="#4540f5"/>
-      <stop offset="1" stop-color="#7f7cff"/>
+      <stop offset="0" stop-color="#e64a19"/>
+      <stop offset="1" stop-color="#ff8a5c"/>
     </linearGradient>
     <linearGradient id="bars" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#8a87ff"/>
-      <stop offset="1" stop-color="#6360f5"/>
+      <stop offset="0" stop-color="#ff8a5c"/>
+      <stop offset="1" stop-color="#ff5722"/>
     </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="14" result="b"/>
+      <feFlood flood-color="#ff5722" flood-opacity="0.35"/>
+      <feComposite in2="b" operator="in"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="tileShadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="20" stdDeviation="24" flood-color="#000" flood-opacity="0.6"/>
+    </filter>
   </defs>
 
-  <!-- Tile -->
-  <rect x="366" y="110" width="804" height="770" rx="175" ry="175" fill="url(#tile)"/>
+  <rect x="366" y="110" width="804" height="770" rx="175" fill="url(#tile)" filter="url(#tileShadow)"/>
+  <rect x="367" y="111" width="802" height="768" rx="174" fill="none" stroke="url(#tileEdge)" stroke-width="2"/>
 
-  <!-- Sound bars -->
-  <rect x="453" y="455" width="43" height="83" rx="21.5" fill="url(#bars)"/>
-  <rect x="514" y="407" width="49" height="174" rx="24.5" fill="url(#bars)"/>
-
-  <!-- Blade -->
-  <path d="M586 392 C620 392 640 420 655 465 C672 520 690 580 713 626 C718 633 712 638 700 642 C680 650 655 648 635 635 C600 612 587 570 587 520 Z" fill="url(#blade)"/>
-
-  <!-- Main ribbon -->
-  <path d="M573 366 C600 335 640 322 678 328 C725 336 752 385 778 435 C805 485 830 520 850 526 C890 560 940 585 985 545 L940 615 C915 655 890 680 850 680 C800 680 760 640 725 575 C690 510 670 440 650 410 C630 380 600 368 573 366 Z" fill="url(#ribbon)"/>
-
-  <!-- Right arm -->
-  <path d="M850 526 L960 345 C970 332 985 328 1000 328 L1088 328 C1102 328 1104 338 1098 348 L990 545 C950 580 890 560 850 526 Z" fill="url(#arm)"/>
-
-  <!-- Fold shadow -->
-  <path d="M850 526 C890 560 950 585 985 545 L992 534 C960 570 900 565 862 508 Z" fill="url(#fold)"/>
+  <g filter="url(#glow)">
+    <rect x="453" y="455" width="43" height="83" rx="21.5" fill="url(#bars)"/>
+    <rect x="514" y="407" width="49" height="174" rx="24.5" fill="url(#bars)"/>
+    <path d="M586 392 C620 392 640 420 655 465 C672 520 690 580 713 626 C718 633 712 638 700 642 C680 650 655 648 635 635 C600 612 587 570 587 520 Z" fill="url(#blade)"/>
+    <path d="M573 366 C600 335 640 322 678 328 C725 336 752 385 778 435 C805 485 830 520 850 526 C890 560 940 585 985 545 L940 615 C915 655 890 680 850 680 C800 680 760 640 725 575 C690 510 670 440 650 410 C630 380 600 368 573 366 Z" fill="url(#ribbon)"/>
+    <path d="M850 526 L960 345 C970 332 985 328 1000 328 L1088 328 C1102 328 1104 338 1098 348 L990 545 C950 580 890 560 850 526 Z" fill="url(#arm)"/>
+    <path d="M850 526 C890 560 950 585 985 545 L992 534 C960 570 900 565 862 508 Z" fill="url(#fold)"/>
+  </g>
 </svg>

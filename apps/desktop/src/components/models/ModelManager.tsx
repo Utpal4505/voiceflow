@@ -75,8 +75,8 @@ export default function ModelManager({
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-[#121319] px-3 py-1.5 text-xs text-slate-300">
-              <HardDrive className="h-3.5 w-3.5 text-[#7772FF]" />
+            <div className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-[#141414] px-3 py-1.5 text-xs text-slate-300 shadow-inner">
+              <HardDrive className="h-3.5 w-3.5 text-[#FF5722]" />
               <span>Storage Used:</span>
               <span className="font-mono font-medium text-white">
                 {totalStorageMb >= 1000
@@ -85,7 +85,7 @@ export default function ModelManager({
               </span>
             </div>
 
-            <span className="rounded-lg border border-white/[0.08] bg-[#121319] px-3 py-1.5 text-xs font-mono text-slate-400">
+            <span className="rounded-lg border border-white/[0.08] bg-[#141414] px-3 py-1.5 text-xs font-mono text-slate-400 shadow-inner">
               {installedCount} of {models.length} Installed
             </span>
           </div>
@@ -107,8 +107,8 @@ export default function ModelManager({
                 onClick={() => setFilter(tab.id)}
                 className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition cursor-pointer active:scale-95 whitespace-nowrap ${
                   filter === tab.id
-                    ? "bg-gradient-to-r from-[#514BFA] to-[#7772FF] text-white shadow-sm shadow-[#514BFA]/30"
-                    : "bg-[#121319] text-slate-400 hover:bg-[#1a1d26] hover:text-slate-200"
+                    ? "bg-[#FF5722] text-white shadow-sm shadow-[#FF5722]/40 font-semibold border border-[#FF5722]/40"
+                    : "bg-[#141414] border border-white/[0.06] text-slate-400 hover:bg-white/[0.04] hover:text-slate-200"
                 }`}
               >
                 {tab.label}
@@ -123,7 +123,7 @@ export default function ModelManager({
               placeholder="Search by name or id..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-lg border border-white/[0.08] bg-[#121319] pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 outline-none transition focus:border-[#514BFA]/80"
+              className="w-full rounded-lg border border-white/[0.08] bg-[#141414] pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 outline-none transition focus:border-[#FF5722] shadow-inner"
             />
           </div>
         </div>
@@ -132,7 +132,7 @@ export default function ModelManager({
       {/* Model Table */}
       <div className="surface-card rounded-xl overflow-hidden">
         <table className="w-full text-left text-xs">
-          <thead className="border-b border-white/[0.06] bg-[#121319] text-[11px] font-medium text-slate-400">
+          <thead className="border-b border-white/[0.06] bg-[#141414] text-[11px] font-medium text-slate-400">
             <tr>
               <th className="py-3 px-4 font-semibold">Model Architecture</th>
               <th className="py-3 px-3 font-semibold">Disk Size</th>
@@ -152,20 +152,20 @@ export default function ModelManager({
               return (
                 <tr
                   key={model.id}
-                  className={`transition-colors duration-150 hover:bg-white/[0.02] ${
-                    model.active ? "bg-[#514BFA]/[0.08]" : ""
+                  className={`transition-colors duration-150 hover:bg-white/[0.03] ${
+                    model.active ? "bg-[#FF5722]/[0.10] border-l-2 border-l-[#FF5722]" : ""
                   }`}
                 >
                   <td className="py-3.5 px-4 font-medium text-slate-200">
                     <div className="flex items-center gap-2">
                       <span className="font-semibold">{model.name}</span>
                       {model.id === "base.en" && (
-                        <span className="rounded bg-[#514BFA]/15 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-[#A5A0FF] border border-[#514BFA]/30">
+                        <span className="rounded bg-[#FF5722]/15 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-[#FF7A50] border border-[#FF5722]/30">
                           Recommended
                         </span>
                       )}
                       {model.id.includes("q5") && (
-                        <span className="rounded bg-indigo-500/15 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-indigo-300 border border-indigo-500/30">
+                        <span className="rounded bg-[#FF5722]/15 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-[#FF7A50] border border-[#FF5722]/30">
                           Q5 Quantized
                         </span>
                       )}
@@ -221,12 +221,12 @@ export default function ModelManager({
                   <td className="py-3.5 px-4 text-right">
                     {isDownloading ? (
                       <div className="inline-flex flex-col items-end gap-1 w-28">
-                        <span className="font-mono text-[10px] text-[#A5A0FF] font-medium">
+                        <span className="font-mono text-[10px] text-[#FF7A50] font-medium">
                           {progress}% Downloading
                         </span>
                         <div className="h-1.5 w-full rounded-full bg-white/[0.06] overflow-hidden">
                           <div
-                            className="h-full bg-gradient-to-r from-[#514BFA] to-[#A5A0FF] transition-all duration-150"
+                            className="h-full bg-gradient-to-r from-[#FF5722] to-[#FF7A50] transition-all duration-150"
                             style={{ width: `${progress}%` }}
                           />
                         </div>
@@ -258,7 +258,7 @@ export default function ModelManager({
                     ) : (
                       <button
                         onClick={() => onDownload(model.id)}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-[#121319] px-3 py-1 text-[11px] font-medium text-slate-200 transition hover:bg-[#514BFA] hover:border-[#514BFA] hover:text-white cursor-pointer active:scale-95"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[#FF5722]/30 bg-[#FF5722]/15 px-3 py-1 text-[11px] font-semibold text-[#FF7A50] transition hover:bg-[#FF5722] hover:text-white cursor-pointer active:scale-95 shadow-sm shadow-[#FF5722]/20"
                       >
                         <Download className="h-3 w-3" />
                         <span>Install</span>

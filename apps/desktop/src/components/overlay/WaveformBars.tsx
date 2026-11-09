@@ -2,6 +2,7 @@ interface Props {
   volume?: number;
   isRecording?: boolean;
   barCount?: number;
+  accent?: "coral";
 }
 
 // Organic acoustic wave distribution
@@ -21,22 +22,22 @@ export default function WaveformBars({
       {weights.map((weight, i) => {
         // Compute dynamic height percentage
         const dynamicHeight = isRecording
-          ? Math.max(18, Math.min(100, Math.round(volume * weight * 130)))
-          : 18;
+          ? Math.max(20, Math.min(100, Math.round(volume * weight * 130)))
+          : 20;
+
+        const activeGradient = "bg-gradient-to-t from-[#FF5722] via-[#FF6347] to-[#FFA07A] shadow-[0_0_6px_rgba(255,87,34,0.6)]";
 
         return (
           <div
             key={i}
             className={`w-[2.5px] rounded-full transition-all duration-75 ease-out ${
-              isRecording
-                ? "bg-gradient-to-t from-[#514BFA] via-[#7772FF] to-[#A5A0FF] shadow-[0_0_6px_rgba(119,114,255,0.7)]"
-                : "bg-slate-700/50"
+              isRecording ? activeGradient : "bg-white/20"
             }`}
             style={{
               height: `${dynamicHeight}%`,
               opacity: isRecording
-                ? Math.max(0.45, Math.min(1, volume * 1.8 + 0.4))
-                : 0.3,
+                ? Math.max(0.5, Math.min(1, volume * 1.8 + 0.5))
+                : 0.25,
             }}
           />
         );

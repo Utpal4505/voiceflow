@@ -300,21 +300,21 @@ export default function MainWindow() {
   ];
 
   return (
-    <div className="flex h-screen flex-col bg-[#212121] bg-warm-dot-grid text-slate-100 select-none overflow-hidden font-sans relative">
-      {/* Subtle Atmospheric Warm Glow Mesh matching landing page */}
-      <div className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 h-96 w-[700px] rounded-full bg-[#514BFA]/[0.08] blur-3xl z-0" />
+    <div className="flex h-screen flex-col bg-[#212121] vf-dot-grid text-slate-100 select-none overflow-hidden font-sans relative">
+      {/* Subtle Atmospheric Warm Glow Mesh matching landing page (Pure Coral) */}
+      <div className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 h-96 w-[700px] rounded-full bg-[#FF5722]/[0.08] blur-3xl z-0" />
 
       {/* Top Integrated Desktop Header Navigation */}
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/[0.08] bg-[#181818]/90 backdrop-blur-md px-6 z-20">
         {/* Left: Brand Mark */}
         <div className="flex items-center gap-3">
-          <VoiceFlowLogo className="h-7 w-7 rounded-lg shadow-sm shadow-[#514BFA]/30" />
+          <VoiceFlowLogo className="h-7 w-7 rounded-lg shadow-sm shadow-[#FF5722]/30" />
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold tracking-tight text-white">VoiceFlow</span>
           </div>
         </div>
 
-        {/* Center: Clean Segmented Navigation Rail (matches web studio switcher) */}
+        {/* Center: Clean Segmented Navigation Rail */}
         <nav className="flex items-center gap-1.5 rounded-xl border border-white/[0.08] bg-[#141414] p-1 shadow-inner">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -331,7 +331,7 @@ export default function MainWindow() {
                 }`}
               >
                 <Icon
-                  className={`h-3.5 w-3.5 ${isActive ? "text-[#7772FF]" : "text-slate-400"}`}
+                  className={`h-3.5 w-3.5 ${isActive ? "text-[#FF5722]" : "text-slate-400"}`}
                 />
                 <span>{item.label}</span>
                 {item.count !== undefined && item.count > 0 && (
@@ -353,8 +353,8 @@ export default function MainWindow() {
               <span className="text-[11px] font-semibold">Listening to Voice...</span>
             </div>
           ) : sessionState === "processing" ? (
-            <div className="flex items-center gap-2 rounded-full border border-[#514BFA]/40 bg-[#514BFA]/15 px-3 py-1 text-xs text-[#A5A0FF]">
-              <Loader2 className="h-3 w-3 animate-spin text-[#7772FF]" />
+            <div className="flex items-center gap-2 rounded-full border border-[#FF5722]/40 bg-[#FF5722]/15 px-3 py-1 text-xs text-[#FFA07A]">
+              <Loader2 className="h-3 w-3 animate-spin text-[#FF5722]" />
               <span className="text-[11px] font-semibold">Transcribing...</span>
             </div>
           ) : (

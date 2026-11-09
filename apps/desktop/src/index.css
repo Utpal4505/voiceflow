@@ -1,37 +1,197 @@
 @import "tailwindcss";
 
+@theme {
+  --color-canvas-bg: #212121;
+  --color-canvas-subtle: #1C1C1C;
+  --color-card-bg: #181818;
+  --color-surface-elevated: #16171D;
+  --color-surface-inset: #0E1015;
+
+  /* Pure Coral Brand Palette - Zero Blue */
+  --color-voice-coral: #FF5722;
+  --color-voice-coral-hover: #E64A19;
+  --color-voice-coral-light: #FF7A50;
+  --color-voice-coral-soft: rgba(255, 87, 34, 0.15);
+
+  --color-engine-emerald: #10B981;
+  --color-engine-amber: #F59E0B;
+
+  --color-ink-primary: #FFFFFF;
+  --color-ink-secondary: #CBD5E1;
+  --color-ink-muted: #94A3B8;
+  --color-ink-subtle: #64748B;
+
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
 :root {
-  --canvas-bg: #0b0c12;
-  --surface-card: #12141f;
-  --surface-elevated: #181b2b;
-  --surface-hover: #20243a;
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-hover: rgba(255, 255, 255, 0.16);
-  --accent-iris: #514bfa;
-  --accent-iris-glow: #7772ff;
-  --accent-periwinkle: #a5a0ff;
-  --accent-emerald: #10b981;
+  /* =========================================================================
+     1. SURFACES & CANVAS (Graphite & Obsidian)
+     ========================================================================= */
+  --vf-canvas-bg: #212121;          /* Primary app background */
+  --vf-canvas-subtle: #1c1c1c;      /* Inset sections & secondary canvas */
+  --vf-card-bg: #181818;            /* Bento cards, panels, sidebars */
+  --vf-surface-elevated: #16171d;   /* Windows, modals, floating HUD */
+  --vf-surface-inset: #0e1015;      /* Code editor canvas, console trays */
+  --vf-surface-hover: rgba(255, 255, 255, 0.05);
+  --vf-surface-active: rgba(255, 255, 255, 0.08);
+
+  /* Legacy compatibility aliases */
+  --canvas-bg: var(--vf-canvas-bg);
+  --canvas-subtle: var(--vf-canvas-subtle);
+  --surface-card: var(--vf-card-bg);
+  --surface-elevated: var(--vf-surface-elevated);
+  --surface-hover: var(--vf-surface-hover);
+
+  /* =========================================================================
+     2. BORDERS & DIVIDERS (Subtle Optical White Translucency)
+     ========================================================================= */
+  --vf-border-subtle: rgba(255, 255, 255, 0.08); /* Default divider */
+  --vf-border-default: rgba(255, 255, 255, 0.12);/* Card outlines */
+  --vf-border-hover: rgba(255, 255, 255, 0.20);  /* Interactive hover */
+  --vf-border-focus: rgba(255, 87, 34, 0.60);    /* VoiceFlow Coral glow */
+  --border-subtle: var(--vf-border-subtle);
+  --border-hover: var(--vf-border-hover);
+
+  /* =========================================================================
+     3. TYPOGRAPHY & INK
+     ========================================================================= */
+  --vf-ink-primary: #ffffff;        /* Headings & primary labels */
+  --vf-ink-secondary: #cbd5e1;      /* Slate-300: body text & instructions */
+  --vf-ink-muted: #94a3b8;          /* Slate-400: secondary descriptions */
+  --vf-ink-subtle: #64748b;         /* Slate-500: meta timestamps & badges */
+  --vf-ink-faint: #475569;          /* Slate-600: line numbers, inactive tabs */
+
+  /* =========================================================================
+     4. BRAND ACCENTS (100% CORAL THEME - ZERO BLUE)
+     ========================================================================= */
+  --vf-accent-coral: #ff5722;
+  --vf-accent-coral-hover: #e64a19;
+  --vf-accent-coral-light: #ff7a50;
+  --vf-accent-coral-glow: rgba(255, 87, 34, 0.50);
+  --vf-accent-coral-soft: rgba(255, 87, 34, 0.12);
+
+  /* Compatibility aliases pointing to Coral */
+  --accent-coral: var(--vf-accent-coral);
+  --accent-iris: var(--vf-accent-coral);
+  --accent-iris-glow: var(--vf-accent-coral-light);
+  --accent-periwinkle: var(--vf-accent-coral-light);
+
+  /* Local Engine Emerald (Offline Ready, Privacy, Success State) */
+  --vf-status-emerald: #10b981;
+  --vf-status-emerald-soft: rgba(16, 185, 129, 0.12);
+  --vf-status-emerald-border: rgba(16, 185, 129, 0.25);
+  --accent-emerald: var(--vf-status-emerald);
+
+  /* Warning / Paused Amber */
+  --vf-status-amber: #f59e0b;
+  --vf-status-amber-soft: rgba(245, 158, 11, 0.12);
+
+  /* =========================================================================
+     5. SHADOWS & WINDOW ACRYLIC GLOWS
+     ========================================================================= */
+  --vf-shadow-hud: 0 20px 60px rgba(0, 0, 0, 0.85);
+  --vf-shadow-card: 0 10px 30px -10px rgba(0, 0, 0, 0.6);
+  --vf-shadow-keycap: 0 2px 0 #000000;
+  --vf-glow-coral: 0 0 20px rgba(255, 87, 34, 0.5);
+
+  /* =========================================================================
+     6. RADII & METRICS
+     ========================================================================= */
+  --vf-radius-sm: 8px;
+  --vf-radius-md: 12px;
+  --vf-radius-lg: 16px;
+  --vf-radius-xl: 24px;
+  --vf-radius-full: 9999px;
 }
 
 html,
 body,
 #root {
   background-color: transparent !important;
+  background: transparent !important;
   height: 100%;
   width: 100%;
   margin: 0;
   padding: 0;
   overflow: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", Helvetica, Arial, sans-serif;
-  color-scheme: dark;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", "Helvetica Neue", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom slim desktop scrollbars */
+/* =========================================================================
+   KEY DESKTOP UI UTILITY CLASSES
+   ========================================================================= */
+
+/* The Stealth Floating HUD Pill (for Tauri Overlay Window) */
+.vf-hud-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: 9999px;
+  background: rgba(22, 23, 29, 0.95);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.85);
+  padding: 8px 16px;
+  color: #ffffff;
+}
+
+.vf-mic-badge {
+  position: relative;
+  display: flex;
+  height: 28px;
+  width: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background-color: #ff5722;
+  color: #ffffff;
+  box-shadow: 0 0 15px rgba(255, 87, 34, 0.65);
+}
+
+/* Tactile Physical Keyboard Keycaps (<kbd>) */
+.vf-keycap,
+.keycap,
+.keycap-dark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+  padding: 2px 8px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: #ffffff;
+  line-height: 1.2;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.vf-keycap:active,
+.keycap:active,
+.keycap-dark:active {
+  transform: translateY(1px);
+  box-shadow: none;
+}
+
+/* Background Dot-Grid Texture */
+.vf-dot-grid,
+.bg-warm-dot-grid,
+.bg-dot-grid {
+  background-color: #212121;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* Custom Native Windows Dark Scrollbar */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -39,20 +199,19 @@ body,
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: #3a3a3a;
   border-radius: 9999px;
-  transition: background 0.2s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.24);
+  background: #4a4a4a;
 }
 
-/* VoiceFlow Iris Surface Cards */
+/* VoiceFlow Graphite Surface Cards */
 .surface-card {
-  background-color: var(--surface-card);
-  border: 1px solid var(--border-subtle);
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.35), inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+  background-color: var(--vf-card-bg);
+  border: 1px solid var(--vf-border-subtle);
+  box-shadow: var(--vf-shadow-card);
 }
 
 .surface-card-hover {
@@ -60,20 +219,22 @@ body,
 }
 
 .surface-card-hover:hover {
-  background-color: var(--surface-hover);
-  border-color: var(--border-hover);
+  background-color: rgba(255, 255, 255, 0.05);
+  border-color: var(--vf-border-hover);
 }
 
 .surface-elevated {
-  background-color: var(--surface-elevated);
-  border: 1px solid var(--border-subtle);
+  background-color: var(--vf-surface-elevated);
+  border: 1px solid var(--vf-border-subtle);
 }
 
-/* VoiceFlow Atmospheric Glow */
+/* Atmospheric Coral Glows */
+.coral-glow,
 .iris-glow {
-  box-shadow: 0 0 24px -2px rgba(81, 75, 250, 0.4), 0 12px 36px 0 rgba(0, 0, 0, 0.75);
+  box-shadow: 0 0 24px -2px rgba(255, 87, 34, 0.45), 0 12px 36px 0 rgba(0, 0, 0, 0.75);
 }
 
+.coral-gradient,
 .iris-gradient {
-  background: linear-gradient(135deg, #7772ff 0%, #514bfa 50%, #3730d9 100%);
+  background: linear-gradient(135deg, #FF7A50 0%, #FF5722 50%, #E64A19 100%);
 }

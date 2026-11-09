@@ -91,8 +91,8 @@ export default function AudioStudio({
       <div className="lg:col-span-7 flex flex-col gap-5">
         {/* Main Live Dictation Notepad Card */}
         <div className="surface-card rounded-2xl p-6 flex flex-col gap-4 relative overflow-hidden">
-          {/* Subtle Ambient Backlight Glow */}
-          <div className="pointer-events-none absolute -top-16 -right-16 h-48 w-48 rounded-full bg-[#514BFA]/10 blur-3xl" />
+          {/* Subtle Ambient Backlight Glow (Coral) */}
+          <div className="pointer-events-none absolute -top-16 -right-16 h-48 w-48 rounded-full bg-[#FF5722]/10 blur-3xl" />
 
           {/* Studio Header Bar */}
           <div className="flex items-center justify-between border-b border-white/[0.06] pb-3.5 relative z-10">
@@ -100,9 +100,9 @@ export default function AudioStudio({
               <span
                 className={`h-2.5 w-2.5 rounded-full ${
                   isRecording
-                    ? "bg-[#514BFA] shadow-[0_0_10px_#7772FF] animate-pulse"
+                    ? "bg-[#FF5722] shadow-[0_0_10px_#FF7A50] animate-pulse"
                     : sessionState === "processing"
-                    ? "bg-[#A5A0FF] animate-spin"
+                    ? "bg-[#FF7A50] animate-spin"
                     : "bg-emerald-400"
                 }`}
               />
@@ -154,21 +154,21 @@ export default function AudioStudio({
           </div>
 
           {/* Dictation Output Canvas */}
-          <div className="min-h-[160px] rounded-xl border border-white/[0.06] bg-[#0E1018] p-4 flex flex-col justify-between relative z-10">
+          <div className="min-h-[160px] rounded-xl border border-white/[0.06] bg-[#141414] p-4 flex flex-col justify-between relative z-10 shadow-inner">
             {liveText ? (
               <p className="text-sm text-slate-100 leading-relaxed font-normal whitespace-pre-wrap select-text">
                 {liveText}
                 {isRecording && (
-                  <span className="inline-block w-1.5 h-4 ml-1 bg-[#7772FF] animate-pulse align-middle" />
+                  <span className="inline-block w-1.5 h-4 ml-1 bg-[#FF5722] animate-pulse align-middle" />
                 )}
               </p>
             ) : (
               <div className="flex flex-col items-center justify-center py-8 text-center gap-2">
                 <Mic className="h-7 w-7 text-slate-600" />
-                <span className="text-xs text-slate-400 font-medium">
+                <span className="text-xs text-slate-300 font-medium">
                   {isRecording ? "Listening to your voice... Speak naturally" : "Ready for voice input"}
                 </span>
-                <p className="text-[11px] text-slate-500 max-w-sm">
+                <p className="text-[11px] text-slate-400 max-w-sm">
                   Click the button below to dictate here, or use the global shortcut in any app.
                 </p>
               </div>
@@ -176,21 +176,21 @@ export default function AudioStudio({
 
             {/* Dynamic Soundwave Visualizer in Pad */}
             <div className="flex items-center justify-between pt-3 border-t border-white/[0.04] mt-2">
-              <WaveformBars volume={volume} isRecording={isRecording} barCount={16} />
-              <span className="font-mono text-[10px] text-slate-500">
+              <WaveformBars volume={volume} isRecording={isRecording} barCount={16} accent="coral" />
+              <span className="font-mono text-[10px] text-slate-400">
                 {isRecording ? `${volumePercent}% Level` : "Acoustic Standby"}
               </span>
             </div>
           </div>
 
-          {/* Primary Big Dictation Control Button */}
+          {/* Primary Big Dictation Control Button (Coral Theme) */}
           <div className="flex items-center justify-between pt-1 relative z-10">
             <button
               onClick={onToggleDictation}
               className={`flex-1 flex items-center justify-center gap-2.5 rounded-xl py-3 px-6 font-semibold text-xs transition cursor-pointer active:scale-[0.98] shadow-md ${
                 isRecording
-                  ? "bg-red-500 hover:bg-red-600 text-white shadow-red-500/25 animate-pulse"
-                  : "bg-gradient-to-r from-[#514BFA] to-[#7772FF] hover:brightness-110 text-white shadow-[#514BFA]/30"
+                  ? "bg-[#FF5722] hover:bg-orange-600 text-white shadow-lg shadow-[#FF5722]/30 animate-pulse"
+                  : "bg-gradient-to-r from-[#FF5722] to-[#FF6347] hover:brightness-110 text-white shadow-md shadow-[#FF5722]/35"
               }`}
             >
               {isRecording ? (
@@ -227,7 +227,7 @@ export default function AudioStudio({
             {onNavigateHistory && (
               <button
                 onClick={onNavigateHistory}
-                className="flex items-center gap-1 text-[11px] text-[#7772FF] hover:text-[#A5A0FF] transition font-medium cursor-pointer"
+                className="flex items-center gap-1 text-[11px] text-[#FF5722] hover:text-[#FF7A50] transition font-medium cursor-pointer"
               >
                 <span>View Full Log</span>
                 <ArrowRight className="h-3 w-3" />
@@ -244,7 +244,7 @@ export default function AudioStudio({
               {recentItems.map((item) => (
                 <div
                   key={item.id}
-                  className="surface-card-hover rounded-lg border border-white/[0.04] bg-[#0E1018] p-3 flex flex-col gap-1.5 transition"
+                  className="surface-card-hover rounded-lg border border-white/[0.04] bg-[#141414] p-3 flex flex-col gap-1.5 transition"
                 >
                   <div className="flex items-center justify-between text-[10px] text-slate-400">
                     <span className="font-mono text-slate-500">
@@ -302,7 +302,7 @@ export default function AudioStudio({
               <select
                 value={selectedDeviceId}
                 onChange={(e) => onSelectDevice(e.target.value)}
-                className="w-full appearance-none rounded-lg border border-white/[0.08] bg-[#0E1018] px-3.5 py-2 text-xs text-slate-200 outline-none transition focus:border-[#514BFA]/80 cursor-pointer"
+                className="w-full appearance-none rounded-lg border border-white/[0.08] bg-[#141414] px-3.5 py-2 text-xs text-slate-200 outline-none transition focus:border-[#FF5722] cursor-pointer shadow-inner"
               >
                 <option value="default">Default System Microphone</option>
                 {availableDevices
@@ -330,7 +330,7 @@ export default function AudioStudio({
 
             {/* Segmented VU Bars */}
             <div className="flex flex-col gap-1.5">
-              <div className="flex h-3.5 w-full gap-1 rounded bg-[#0E1018] p-1 border border-white/[0.04]">
+              <div className="flex h-3.5 w-full gap-1 rounded bg-[#141414] p-1 border border-white/[0.04] shadow-inner">
                 {Array.from({ length: vuSegments }).map((_, i) => {
                   const isLit = isRecording && i < activeSegments;
                   const isPeak = i >= 20;
@@ -383,14 +383,14 @@ export default function AudioStudio({
           </div>
         </div>
 
-        {/* Active Whisper Model Card */}
+        {/* Active Whisper Model Card (Coral Theme) */}
         <div
           onClick={onNavigateModels}
           className="surface-card surface-card-hover rounded-2xl p-5 flex items-center justify-between cursor-pointer transition"
           title="Click to view all models"
         >
           <div className="flex items-center gap-3.5">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#514BFA]/15 text-[#7772FF] border border-[#514BFA]/25">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FF5722]/15 text-[#FF5722] border border-[#FF5722]/25 shadow-sm shadow-[#FF5722]/20">
               <Sparkles className="h-5 w-5" />
             </div>
             <div className="flex flex-col">
@@ -406,7 +406,7 @@ export default function AudioStudio({
             </div>
           </div>
 
-          <div className="flex items-center gap-1 text-xs text-[#7772FF] font-medium">
+          <div className="flex items-center gap-1 text-xs text-[#FF5722] font-semibold">
             <span>Manage</span>
             <ArrowRight className="h-3.5 w-3.5" />
           </div>
@@ -416,14 +416,16 @@ export default function AudioStudio({
         <div className="surface-card rounded-2xl p-5 flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Keyboard className="h-4 w-4 text-[#7772FF]" />
+              <Keyboard className="h-4 w-4 text-[#FF5722]" />
               <span className="text-xs font-semibold text-white uppercase tracking-wider">
                 Global Voice Typing
               </span>
             </div>
-            <kbd className="rounded-lg border border-white/10 bg-[#0E1018] px-2.5 py-1 font-mono text-xs font-semibold text-white shadow-inner">
-              Ctrl + Space
-            </kbd>
+            <div className="flex items-center gap-1 font-mono text-xs font-semibold text-white">
+              <kbd className="vf-keycap">Ctrl</kbd>
+              <span className="text-slate-400 font-bold">+</span>
+              <kbd className="vf-keycap">Space</kbd>
+            </div>
           </div>
           <p className="text-[11px] text-slate-400 leading-relaxed">
             Press this hotkey anywhere in Windows—in VS Code, Slack, Word, or Chrome—to dictate directly into your active cursor without switching windows.

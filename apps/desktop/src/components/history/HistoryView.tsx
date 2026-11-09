@@ -62,7 +62,7 @@ export default function HistoryView() {
             placeholder="Search through past transcriptions..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full rounded-lg border border-white/[0.08] bg-[#121319] pl-8 pr-4 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none transition focus:border-[#514BFA]/80"
+            className="w-full rounded-lg border border-white/[0.08] bg-[#141414] pl-8 pr-4 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none transition focus:border-[#FF5722] shadow-inner"
           />
         </div>
       </div>
@@ -74,8 +74,12 @@ export default function HistoryView() {
           <span className="text-sm font-medium text-slate-300">
             {searchTerm ? "No matching transcriptions found" : "No transcriptions yet"}
           </span>
-          <p className="text-xs text-slate-500 max-w-sm">
-            Press <kbd className="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-slate-300">Ctrl + Space</kbd> anywhere to start voice typing.
+          <p className="text-xs text-slate-500 max-w-sm flex items-center justify-center gap-1.5 mt-1">
+            <span>Press</span>
+            <kbd className="vf-keycap">Ctrl</kbd>
+            <span className="text-slate-400 font-bold">+</span>
+            <kbd className="vf-keycap">Space</kbd>
+            <span>anywhere to start voice typing.</span>
           </p>
         </div>
       ) : (

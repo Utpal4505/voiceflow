@@ -1,3 +1,6 @@
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+
 #[cfg(target_os = "windows")]
 use std::ffi::OsStr;
 #[cfg(target_os = "windows")]
@@ -7,6 +10,92 @@ use windows_sys::Win32::System::Registry::{
     RegCloseKey, RegDeleteValueW, RegOpenKeyExW, RegQueryValueExW, RegSetValueExW,
     HKEY, HKEY_CURRENT_USER, KEY_READ, KEY_WRITE, REG_SZ,
 };
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+pub struct AutostartConfig {
+    pub autostart_enabled: Option<bool>,
+}
+
+fn get_config_path() -> Option<PathBuf> {
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            let dir = PathBuf::from(appdata).join("VoiceFlow");
+            let _ = std::fs::create_dir_all(&dir);
+            return Some(dir.join("autostart_settings.json"));
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        if let Ok(home) = std::env::var("HOME") {
+            let dir = PathBuf::from(home).join(".config").join("voiceflow");
+            let _ = std::fs::create_dir_all(&dir);
+            return Some(dir.join("autostart_settings.json"));
+        }
+    }
+    None
+}
+
+pub fn load_autostart_config() -> AutostartConfig {
+    if let Some(path) = get_config_path() {
+        if let Ok(content) = std::fs::read_to_string(&path) {
+            if let Ok(config) = serde_json::from_str::<AutostartConfig>(&content) {
+                return config;
+            }
+        }
+    }
+    AutostartConfig::default()
+}
+
+pub fn save_autostart_config(enabled: bool) {
+    if let Some(path) = get_config_path() {
+        let config = AutostartConfig {
+            autostart_enabled: Some(enabled),
+        };
+        if let Ok(json) = serde_json::to_string_pretty(&config) {
+            let _ = std::fs::write(path, json);
+        }
+    }
+}
+
+pub fn init_default_autostart() {
+    let config = load_autostart_config();
+    match config.autostart_enabled {
+        None => {
+            // First run: Autostart is enabled by default.
+            println!("[Autostart] First run detected: initializing Windows autostart to ON by default");
+            if let Err(e) = enable_autostart() {
+                eprintln!("[Autostart] Failed to enable autostart on first run: {}", e);
+            } else {
+                save_autostart_config(true);
+            }
+        }
+        Some(true) => {
+            // User wants autostart enabled: verify/refresh registry entry (e.g. if binary path updated)
+            if !is_autostart_enabled() {
+                println!("[Autostart] Refreshing autostart registration in registry");
+                let _ = enable_autostart();
+            }
+        }
+        Some(false) => {
+            // User explicitly disabled autostart: respect user preference and do not enable!
+            println!("[Autostart] Autostart is disabled per user preference");
+            if is_autostart_enabled() {
+                let _ = disable_autostart();
+            }
+        }
+    }
+}
+
+pub fn set_autostart(enabled: bool) -> Result<bool, String> {
+    save_autostart_config(enabled);
+    if enabled {
+        enable_autostart()?;
+    } else {
+        disable_autostart()?;
+    }
+    Ok(is_autostart_enabled())
+}
 
 #[cfg(target_os = "windows")]
 fn to_wide_chars(s: &str) -> Vec<u16> {

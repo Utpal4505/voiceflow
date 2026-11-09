@@ -225,13 +225,11 @@ fn get_autostart_status() -> bool {
 }
 
 #[tauri::command]
-fn set_autostart_status(enabled: bool) -> Result<bool, String> {
-    if enabled {
-        autostart::enable_autostart()?;
-    } else {
-        autostart::disable_autostart()?;
-    }
-    Ok(autostart::is_autostart_enabled())
+fn set_autostart_status(app: AppHandle, enabled: bool) -> Result<bool, String> {
+    let status = autostart::set_autostart(enabled)?;
+    tray::update_tray_autostart(&app, status);
+    let _ = app.emit("autostart-changed", status);
+    Ok(status)
 }
 
 #[tauri::command]
@@ -301,6 +299,9 @@ pub fn run() {
                 }
             }
 
+            // Ensure autostart on Windows startup is enabled by default on initial launch
+            autostart::init_default_autostart();
+
             // Initialize System Tray
             if let Err(e) = tray::create_tray(app.handle()) {
                 eprintln!("[Tray] Error creating system tray: {}", e);
@@ -310,6 +311,19 @@ pub fn run() {
                 #[cfg(target_os = "windows")]
                 if let Ok(hwnd) = overlay.hwnd() {
                     make_window_non_activating(hwnd.0 as isize);
+
+                    // Remove native Windows 11 DWM borders on the transparent overlay window
+                    use windows_sys::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_BORDER_COLOR};
+                    unsafe {
+                        // 0xFFFFFFFE is DWMWA_COLOR_NONE (disables the window border in Windows 11)
+                        let border_color: u32 = 0xFFFFFFFE;
+                        let _ = DwmSetWindowAttribute(
+                            hwnd.0 as _,
+                            DWMWA_BORDER_COLOR as u32,
+                            &border_color as *const _ as *const std::ffi::c_void,
+                            std::mem::size_of::<u32>() as u32,
+                        );
+                    }
                 }
             }
             if let Ok(shortcut) = Shortcut::from_str("CommandOrControl+Space") {

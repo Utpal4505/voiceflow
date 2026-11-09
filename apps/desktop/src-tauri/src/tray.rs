@@ -1,8 +1,11 @@
+use std::sync::Mutex;
 use tauri::{
-    menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder, PredefinedMenuItem},
+    menu::{CheckMenuItem, CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager,
 };
+
+static AUTOSTART_ITEM: Mutex<Option<CheckMenuItem<tauri::Wry>>> = Mutex::new(None);
 
 pub fn create_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let open_item = MenuItemBuilder::with_id("open", "Open VoiceFlow").build(app)?;
@@ -11,6 +14,11 @@ pub fn create_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let autostart_item = CheckMenuItemBuilder::with_id("autostart", "Start with Windows")
         .checked(autostart_enabled)
         .build(app)?;
+
+    if let Ok(mut guard) = AUTOSTART_ITEM.lock() {
+        *guard = Some(autostart_item.clone());
+    }
+
     let update_item = MenuItemBuilder::with_id("check_updates", "Check for Updates...").build(app)?;
     let separator = PredefinedMenuItem::separator(app)?;
     let quit_item = MenuItemBuilder::with_id("quit", "Quit VoiceFlow").build(app)?;
@@ -19,7 +27,7 @@ pub fn create_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         .items(&[&open_item, &toggle_item, &autostart_item, &update_item, &separator, &quit_item])
         .build()?;
 
-    let mut tray_builder = TrayIconBuilder::new()
+    let mut tray_builder = TrayIconBuilder::with_id("main_tray")
         .menu(&menu)
         .tooltip("VoiceFlow - Voice Typing")
         .show_menu_on_left_click(false);
@@ -42,11 +50,9 @@ pub fn create_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
             }
             "autostart" => {
                 let current = crate::autostart::is_autostart_enabled();
-                if current {
-                    let _ = crate::autostart::disable_autostart();
-                } else {
-                    let _ = crate::autostart::enable_autostart();
-                }
+                let new_state = !current;
+                let _ = crate::autostart::set_autostart(new_state);
+                let _ = app.emit("autostart-changed", new_state);
             }
             "check_updates" => {
                 if let Some(window) = app.get_webview_window("main") {
@@ -85,4 +91,12 @@ pub fn create_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
 
     println!("[Tray] System tray initialized successfully");
     Ok(())
+}
+
+pub fn update_tray_autostart(_app: &AppHandle, enabled: bool) {
+    if let Ok(guard) = AUTOSTART_ITEM.lock() {
+        if let Some(item) = guard.as_ref() {
+            let _ = item.set_checked(enabled);
+        }
+    }
 }

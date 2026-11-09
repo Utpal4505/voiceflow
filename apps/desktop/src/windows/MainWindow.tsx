@@ -35,6 +35,21 @@ export default function MainWindow() {
       .then((enabled) => setAutostartEnabled(enabled))
       .catch(() => {});
     trackAppLaunched();
+
+    let unlisten: (() => void) | undefined;
+    listen<boolean>("autostart-changed", (event) => {
+      if (typeof event.payload === "boolean") {
+        setAutostartEnabled(event.payload);
+      }
+    })
+      .then((fn) => {
+        unlisten = fn;
+      })
+      .catch(() => {});
+
+    return () => {
+      unlisten?.();
+    };
   }, []);
 
   const handleToggleAutostart = async () => {
@@ -285,19 +300,22 @@ export default function MainWindow() {
   ];
 
   return (
-    <div className="flex h-screen flex-col bg-[#0B0C12] text-slate-100 select-none overflow-hidden font-sans">
+    <div className="flex h-screen flex-col bg-[#212121] bg-warm-dot-grid text-slate-100 select-none overflow-hidden font-sans relative">
+      {/* Subtle Atmospheric Warm Glow Mesh matching landing page */}
+      <div className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 h-96 w-[700px] rounded-full bg-[#514BFA]/[0.08] blur-3xl z-0" />
+
       {/* Top Integrated Desktop Header Navigation */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/[0.08] bg-[#10121A] px-6 z-20">
+      <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/[0.08] bg-[#181818]/90 backdrop-blur-md px-6 z-20">
         {/* Left: Brand Mark */}
         <div className="flex items-center gap-3">
           <VoiceFlowLogo className="h-7 w-7 rounded-lg shadow-sm shadow-[#514BFA]/30" />
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold tracking-tight text-white">VoiceFlow</span>
+            <span className="text-sm font-bold tracking-tight text-white">VoiceFlow</span>
           </div>
         </div>
 
-        {/* Center: Clean Segmented Navigation Rail */}
-        <nav className="flex items-center gap-1 rounded-xl border border-white/[0.06] bg-[#0E0F14] p-1">
+        {/* Center: Clean Segmented Navigation Rail (matches web studio switcher) */}
+        <nav className="flex items-center gap-1.5 rounded-xl border border-white/[0.08] bg-[#141414] p-1 shadow-inner">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -306,10 +324,10 @@ export default function MainWindow() {
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition cursor-pointer active:scale-95 ${
+                className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all cursor-pointer ${
                   isActive
-                    ? "bg-[#181B2B] text-white shadow-sm border border-white/[0.08]"
-                    : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.03]"
+                    ? "bg-[#282828] text-white shadow-xs border border-white/[0.14] font-semibold"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]"
                 }`}
               >
                 <Icon
@@ -317,7 +335,7 @@ export default function MainWindow() {
                 />
                 <span>{item.label}</span>
                 {item.count !== undefined && item.count > 0 && (
-                  <span className="rounded-full bg-white/[0.08] px-1.5 py-0.2 font-mono text-[9px] text-slate-400">
+                  <span className="rounded-full bg-white/[0.08] px-1.5 py-0.2 font-mono text-[9px] text-slate-300">
                     {item.count}
                   </span>
                 )}
@@ -330,21 +348,21 @@ export default function MainWindow() {
         <div className="flex items-center gap-3">
           {/* Live Dictation State / Engine Badge */}
           {isRecording ? (
-            <div className="flex items-center gap-2 rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs text-red-300 animate-pulse">
-              <span className="h-2 w-2 rounded-full bg-red-400" />
+            <div className="flex items-center gap-2 rounded-full border border-[#FF5722]/40 bg-[#FF5722]/15 px-3 py-1 text-xs text-[#FFA07A] animate-pulse">
+              <span className="h-2 w-2 rounded-full bg-[#FF5722] shadow-[0_0_8px_rgba(255,87,34,0.8)]" />
               <span className="text-[11px] font-semibold">Listening to Voice...</span>
             </div>
           ) : sessionState === "processing" ? (
-            <div className="flex items-center gap-2 rounded-full border border-[#514BFA]/30 bg-[#514BFA]/10 px-3 py-1 text-xs text-[#A5A0FF]">
-              <Loader2 className="h-3 w-3 animate-spin" />
+            <div className="flex items-center gap-2 rounded-full border border-[#514BFA]/40 bg-[#514BFA]/15 px-3 py-1 text-xs text-[#A5A0FF]">
+              <Loader2 className="h-3 w-3 animate-spin text-[#7772FF]" />
               <span className="text-[11px] font-semibold">Transcribing...</span>
             </div>
           ) : (
-            <div className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-[#0E0F14] px-3 py-1 text-xs text-slate-300">
+            <div className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-[#141414] px-3 py-1.5 text-xs text-slate-300 shadow-inner">
               <span
                 className={`h-2 w-2 rounded-full ${
                   isConnected
-                    ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]"
+                    ? "bg-[#10B981] shadow-[0_0_8px_rgba(16,185,129,0.8)]"
                     : "bg-amber-400 animate-pulse"
                 }`}
               />
@@ -357,7 +375,7 @@ export default function MainWindow() {
           {/* Clean Settings Gear Button */}
           <button
             onClick={() => setIsSettingsOpen(true)}
-            className="rounded-lg border border-white/[0.08] bg-[#0E0F14] hover:bg-white/[0.06] p-1.5 text-slate-400 hover:text-white transition cursor-pointer active:scale-95"
+            className="rounded-lg border border-white/[0.08] bg-[#141414] hover:bg-white/[0.06] hover:border-white/[0.16] p-2 text-slate-400 hover:text-white transition cursor-pointer active:scale-95 shadow-inner"
             title="Open Preferences & Settings"
           >
             <Settings className="h-4 w-4" />

@@ -1,4 +1,4 @@
-import logoPng from "../../assets/logo.png";
+import logoSvg from "../../assets/logo.svg";
 
 interface Props {
   className?: string;
@@ -13,7 +13,7 @@ export default function VoiceFlowLogo({
 }: Props) {
   return (
     <img
-      src={logoPng}
+      src={logoSvg}
       alt={alt}
       width={size}
       height={size}

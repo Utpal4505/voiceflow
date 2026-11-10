@@ -13,6 +13,7 @@ use tauri::AppHandle;
 
 use audio_stream::{start_audio_capture, AudioCapture, RingBuffer};
 use detector::WakeWordDetector;
+use dtw::DtwMatcher;
 use mfcc::{MfccExtractor, NUM_CEPSTRA, SAMPLE_RATE};
 use templates::{delete_user_profile, load_user_profiles, save_user_profile, WakeWordTemplates};
 
@@ -104,15 +105,18 @@ impl WakeWordService {
         );
 
         let start_wait = Instant::now();
-        let timeout = Duration::from_millis(5500);
-        let speech_threshold = 0.012f32; // Genuine voice threshold (room noise is ~0.004)
+        let timeout = Duration::from_millis(6000);
+        let speech_onset_threshold = 0.012f32;
+        let speech_silence_threshold = 0.010f32;
 
         let mut voice_detected = false;
         let mut speech_start = Instant::now();
+        let mut silence_frame_count: usize = 0;
+        let mut peak_rms = 0.0f32;
         let extractor = MfccExtractor::new();
 
         while start_wait.elapsed() < timeout {
-            // Check recent 300ms RMS (4,800 samples)
+            // Check recent 120ms RMS (1,920 samples)
             let audio_samples = {
                 if let Ok(buf) = self.buffer.lock() {
                     buf.get_linear_slice()
@@ -122,11 +126,11 @@ impl WakeWordService {
             };
 
             if audio_samples.len() < SAMPLE_RATE {
-                std::thread::sleep(Duration::from_millis(50));
+                std::thread::sleep(Duration::from_millis(40));
                 continue;
             }
 
-            let check_len = 4800.min(audio_samples.len());
+            let check_len = 1920.min(audio_samples.len());
             let check_slice = &audio_samples[audio_samples.len() - check_len..];
             let mut sum_sq = 0.0f32;
             for &s in check_slice {
@@ -135,49 +139,99 @@ impl WakeWordService {
             let rms = (sum_sq / check_len as f32).sqrt();
 
             if !voice_detected {
-                if rms >= speech_threshold {
+                if rms >= speech_onset_threshold {
                     voice_detected = true;
                     speech_start = Instant::now();
+                    silence_frame_count = 0;
+                    peak_rms = rms;
                     println!(
                         "[WakeWord Calibration] Voice onset detected! RMS={:.5} >= {:.5}",
-                        rms, speech_threshold
+                        rms, speech_onset_threshold
                     );
                 } else {
                     std::thread::sleep(Duration::from_millis(40));
                     continue;
                 }
             } else {
-                // Speech is underway. Wait for either pause or 1.4s of speech
+                if rms > peak_rms {
+                    peak_rms = rms;
+                }
+
+                if rms < speech_silence_threshold {
+                    silence_frame_count += 1;
+                } else {
+                    silence_frame_count = 0;
+                }
+
                 let speech_dur = speech_start.elapsed();
-                if speech_dur >= Duration::from_millis(1300) || (speech_dur >= Duration::from_millis(600) && rms < 0.008) {
+
+                // Speech endpointing conditions:
+                // 1. Natural end of phrase: silence for >= 160ms (4 frames @ 40ms) after at least 380ms of speech
+                // 2. Max utterance timeout: 1.35 seconds
+                let is_speech_done = (silence_frame_count >= 4 && speech_dur >= Duration::from_millis(380))
+                    || speech_dur >= Duration::from_millis(1350);
+
+                if is_speech_done {
+                    let actual_speech_ms = speech_dur.as_millis();
                     println!(
-                        "[WakeWord Calibration] Speech completed! Duration: {}ms. Extracting MFCCs...",
-                        speech_dur.as_millis()
+                        "[WakeWord Calibration] Speech completed! Duration: {}ms, Peak RMS: {:.5}. Validating...",
+                        actual_speech_ms, peak_rms
                     );
 
-                    // Extract genuine speech audio with 200ms padding
-                    let speech_sample_count = ((speech_dur.as_secs_f32() + 0.20) * SAMPLE_RATE as f32) as usize;
-                    let candidate_len = speech_sample_count.clamp(7200, 24000).min(audio_samples.len());
+                    // Quality Gate 1: Volume Check
+                    if peak_rms < 0.013 {
+                        return Err("Voice was too quiet. Please speak clearly at normal volume.".to_string());
+                    }
+                    if peak_rms > 0.45 {
+                        return Err("Mic volume clipped. Please speak at normal speaking volume.".to_string());
+                    }
+
+                    // Quality Gate 2: Duration Check
+                    if actual_speech_ms < 280 {
+                        return Err("Speech was too brief. Please pronounce the full phrase clearly.".to_string());
+                    }
+                    if actual_speech_ms > 1300 && silence_frame_count < 4 {
+                        return Err("Recording took too long. Just say the phrase itself.".to_string());
+                    }
+
+                    // Extract speech audio with 120ms pre/post margin
+                    let speech_sample_count = ((speech_dur.as_secs_f32() + 0.12) * SAMPLE_RATE as f32) as usize;
+                    let candidate_len = speech_sample_count.clamp(5600, 22000).min(audio_samples.len());
                     let candidate_audio = &audio_samples[audio_samples.len() - candidate_len..];
 
                     let mfcc_frames = extractor.extract(candidate_audio);
                     if mfcc_frames.len() < 25 {
-                        return Err("Speech utterance was too short. Please speak clearly.".to_string());
+                        return Err("Could not extract speech features. Please speak clearly.".to_string());
+                    }
+
+                    // Quality Gate 3: Consistency Check with Step 1
+                    // If this is step 2 or 3, ensure it sounds like the same wake phrase as step 1!
+                    if !self.calibration_samples.is_empty() {
+                        let dist_to_first = DtwMatcher::distance(&mfcc_frames, &self.calibration_samples[0]);
+                        println!(
+                            "[WakeWord Calibration] Consistency check vs Step 1: Distance={:.3}",
+                            dist_to_first
+                        );
+                        if dist_to_first > 0.78 || dist_to_first.is_infinite() {
+                            return Err("Didn't sound quite like the first sample. Please repeat the wake phrase.".to_string());
+                        }
                     }
 
                     self.calibration_samples.push(mfcc_frames);
                     let current_count = self.calibration_samples.len();
 
                     println!(
-                        "[WakeWord Calibration] Successfully recorded sample #{}/3 (frames: {})",
+                        "[WakeWord Calibration] Validated & accepted sample #{}/3 (frames: {})",
                         current_count,
                         self.calibration_samples.last().unwrap().len()
                     );
 
                     if current_count >= 3 {
-                        println!("[WakeWord Calibration] All 3 samples gathered! Ensembling prototypes...");
+                        println!("[WakeWord Calibration] All 3 samples gathered! Generating speed-augmented ensemble (9 prototypes)...");
                         let best_prototype = WakeWordTemplates::select_best_prototype(&self.calibration_samples);
-                        save_user_profile(&phrase, best_prototype, self.calibration_samples.clone())?;
+                        let augmented_prototypes = templates::augment_calibration_samples(&self.calibration_samples);
+
+                        save_user_profile(&phrase, best_prototype, augmented_prototypes)?;
                         self.reload_flag.store(true, Ordering::Relaxed);
                         self.calibration_samples.clear();
 
@@ -194,11 +248,12 @@ impl WakeWordService {
                         }));
                     }
                 }
+
                 std::thread::sleep(Duration::from_millis(40));
             }
         }
 
-        Err("No speech detected within 5 seconds. Please tap and speak clearly.".to_string())
+        Err("No speech detected within 6 seconds. Please tap and speak clearly.".to_string())
     }
 
     pub fn get_enrolled_status(&self) -> serde_json::Value {

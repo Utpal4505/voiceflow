@@ -250,9 +250,9 @@ impl WakeWordDetector {
                 if check_voiceflow {
                     if let Some(prototypes) = &templates.user_hey_voiceflow {
                         let dist = WakeWordTemplates::min_ensemble_distance(&query_mfcc, prototypes);
-                        // Enrolled threshold curve: 0.42 (sens 0.0) to 0.54 (sens 1.0) -> 0.486 at 0.55
-                        // Empirically isolates true speech (0.34 - 0.47) from other words (0.56 - 0.75)
-                        let threshold = 0.42 + current_config.sensitivity.clamp(0.0, 1.0) * 0.12;
+                        // Enrolled threshold curve: 0.44 (sens 0.0) to 0.56 (sens 1.0) -> 0.506 at 0.55
+                        // Empirically isolates true speech (0.32 - 0.47) from other words (>= 0.53)
+                        let threshold = 0.44 + current_config.sensitivity.clamp(0.0, 1.0) * 0.12;
                         println!(
                             "[WakeWord DTW] VoiceFlow (Enrolled User Profile - {} prototypes): Distance={:.3} vs Threshold={:.3}",
                             prototypes.len(), dist, threshold
@@ -281,7 +281,7 @@ impl WakeWordDetector {
                 if check_flow {
                     if let Some(prototypes) = &templates.user_hey_flow {
                         let dist = WakeWordTemplates::min_ensemble_distance(&query_mfcc, prototypes);
-                        let threshold = 0.42 + current_config.sensitivity.clamp(0.0, 1.0) * 0.12;
+                        let threshold = 0.44 + current_config.sensitivity.clamp(0.0, 1.0) * 0.12;
                         println!(
                             "[WakeWord DTW] Flow (Enrolled User Profile - {} prototypes): Distance={:.3} vs Threshold={:.3}",
                             prototypes.len(), dist, threshold

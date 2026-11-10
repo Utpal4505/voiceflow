@@ -140,6 +140,50 @@ impl WakeWordTemplates {
     }
 }
 
+/// Generates speed-augmented variations of an MFCC frame sequence using linear interpolation.
+/// factor < 1.0 speeds up (shorter duration), factor > 1.0 slows down (longer duration).
+pub fn time_stretch_frames(frames: &[[f32; NUM_CEPSTRA]], factor: f32) -> Vec<[f32; NUM_CEPSTRA]> {
+    let n = frames.len();
+    if n < 5 || (factor - 1.0).abs() < 1e-3 {
+        return frames.to_vec();
+    }
+
+    let target_len = ((n as f32) * factor).round().max(8.0) as usize;
+    let mut out = Vec::with_capacity(target_len);
+
+    for j in 0..target_len {
+        let src_pos = (j as f32) * ((n - 1) as f32) / ((target_len - 1) as f32);
+        let idx0 = src_pos.floor() as usize;
+        let idx1 = (idx0 + 1).min(n - 1);
+        let frac = src_pos - idx0 as f32;
+
+        let mut frame = [0.0f32; NUM_CEPSTRA];
+        for k in 0..NUM_CEPSTRA {
+            frame[k] = frames[idx0][k] * (1.0 - frac) + frames[idx1][k] * frac;
+        }
+        out.push(frame);
+    }
+
+    out
+}
+
+/// Takes recorded calibration samples and expands them into an augmented ensemble of 
+/// original (1.0x), brisk (0.85x), and deliberate (1.15x) cadence prototypes.
+pub fn augment_calibration_samples(
+    samples: &[Vec<[f32; NUM_CEPSTRA]>],
+) -> Vec<Vec<[f32; NUM_CEPSTRA]>> {
+    let mut augmented = Vec::with_capacity(samples.len() * 3);
+    for sample in samples {
+        // Fast / brisk variation (0.85x)
+        augmented.push(time_stretch_frames(sample, 0.85));
+        // Original variation (1.0x)
+        augmented.push(sample.clone());
+        // Deliberate / slow variation (1.15x)
+        augmented.push(time_stretch_frames(sample, 1.15));
+    }
+    augmented
+}
+
 pub fn get_profiles_dir() -> PathBuf {
     #[cfg(target_os = "windows")]
     {
@@ -334,5 +378,18 @@ mod tests {
 
         let min_d = WakeWordTemplates::min_ensemble_distance(&query, &[tpl1, tpl2]);
         assert!(min_d < 1e-4, "Ensemble distance should pick the closest prototype, got {}", min_d);
+    }
+
+    #[test]
+    fn test_time_stretch_and_augmentation() {
+        let sample = vec![[1.0f32; NUM_CEPSTRA]; 100];
+        let fast = time_stretch_frames(&sample, 0.85);
+        let slow = time_stretch_frames(&sample, 1.15);
+
+        assert_eq!(fast.len(), 85, "Fast variant should have 85 frames");
+        assert_eq!(slow.len(), 115, "Slow variant should have 115 frames");
+
+        let augmented = augment_calibration_samples(&[sample]);
+        assert_eq!(augmented.len(), 3, "1 sample should expand into 3 augmented prototypes");
     }
 }

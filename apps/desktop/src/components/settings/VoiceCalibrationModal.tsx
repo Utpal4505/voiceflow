@@ -67,19 +67,19 @@ export default function VoiceCalibrationModal({
         setTimeout(() => {
           setCurrentStep((prev) => prev + 1);
           setStatus("ready");
-        }, 1200);
+        }, 1100);
       }
     } catch (err) {
       console.warn("[Calibration] Step error:", err);
       setStatus("error");
-      setErrorMessage(typeof err === "string" ? err : "No speech detected. Please speak clearly.");
+      setErrorMessage(typeof err === "string" ? err : "Could not clearly detect the phrase. Please try again.");
     }
   };
 
-  const stepPrompts = [
-    `Say "${displayPhrase}" clearly into your microphone`,
-    `Great! Now say "${displayPhrase}" again`,
-    `One last time: say "${displayPhrase}"`,
+  const stepCoaching = [
+    "Speak at your natural, conversational pace.",
+    "Speak clearly at normal volume.",
+    "One last time at your standard speaking rhythm.",
   ];
 
   return (
@@ -109,7 +109,7 @@ export default function VoiceCalibrationModal({
         </div>
 
         {/* Body */}
-        <div className="p-6 flex flex-col items-center text-center gap-5 relative z-10">
+        <div className="p-6 flex flex-col items-center text-center gap-4 relative z-10">
           {status !== "complete" ? (
             <>
               {/* Step Counter Indicator */}
@@ -158,23 +158,34 @@ export default function VoiceCalibrationModal({
                 </div>
               </div>
 
-              {/* Current Prompt */}
-              <div className="flex flex-col gap-1">
+              {/* Target Phrase Callout Box */}
+              <div className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl py-3 px-4 flex flex-col items-center justify-center shadow-inner">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-0.5">
+                  Say out loud:
+                </span>
+                <span className="text-2xl font-black text-white tracking-tight drop-shadow-[0_2px_12px_rgba(255,87,34,0.35)]">
+                  "{displayPhrase}"
+                </span>
+              </div>
+
+              {/* Coaching & Status Messages */}
+              <div className="flex flex-col gap-1 w-full">
                 <span className="text-[10px] font-mono uppercase tracking-wider text-[#FF5722]">
                   Exercise {currentStep} of 3
                 </span>
-                <h4 className="text-sm font-semibold text-white px-2">
+                <p className="text-[11px] text-slate-300">
                   {status === "captured"
-                    ? "Sample Captured! Excellent."
-                    : stepPrompts[currentStep - 1]}
-                </h4>
-                <p className="text-[11px] text-slate-400 max-w-xs mt-0.5">
-                  {status === "listening"
+                    ? "Sample verified! Moving to next step..."
+                    : status === "listening"
                     ? "Listening for your voice... speak now!"
-                    : status === "error"
-                    ? errorMessage
-                    : "Tap the button below and speak at your natural volume."}
+                    : stepCoaching[currentStep - 1]}
                 </p>
+
+                {status === "error" && (
+                  <div className="mt-1 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/25 text-red-300 text-[11px] text-center">
+                    {errorMessage}
+                  </div>
+                )}
               </div>
 
               {/* Action Button */}
@@ -223,13 +234,13 @@ export default function VoiceCalibrationModal({
                 </div>
                 <h4 className="text-sm font-semibold text-white">Voice Model Enrolled</h4>
                 <p className="text-[11px] text-slate-400 max-w-xs mt-1">
-                  VoiceFlow has calibrated against your unique acoustic tract. Hands-free wake word recognition is now active.
+                  VoiceFlow has calibrated against your voice and generated 9 acoustic variations (normal, fast, and deliberate cadences). Hands-free wake word recognition is now active.
                 </p>
               </div>
 
               <button
                 onClick={onClose}
-                className="w-full rounded-xl bg-[#FF5722] hover:bg-[#E64A19] py-2 text-xs font-semibold text-white shadow-md shadow-[#FF5722]/30 transition cursor-pointer active:scale-95 mt-2"
+                className="w-full rounded-xl bg-[#FF5722] hover:bg-[#E64A19] py-2.5 text-xs font-semibold text-white shadow-md shadow-[#FF5722]/30 transition cursor-pointer active:scale-95 mt-2"
               >
                 Done
               </button>

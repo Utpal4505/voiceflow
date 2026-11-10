@@ -37,10 +37,11 @@ impl DtwMatcher {
             return f32::INFINITY;
         }
 
-        // Strict temporal ratio constraint: speech rate variability bounded between 65% and 140%
-        // Prevents longer multi-word phrases (e.g. 5 syllables) from matching short 2-3 syllable wake words
+        // Temporal ratio constraint: bounded between 60% and 145% of template length
+        // Together with augmented prototypes (0.85x to 1.15x), this covers human speaking rate variations
+        // while rejecting long multi-word sentences (e.g. 5+ syllables) without running matrix alignments
         let ratio = n as f32 / m as f32;
-        if ratio < 0.65 || ratio > 1.40 {
+        if ratio < 0.60 || ratio > 1.45 {
             return f32::INFINITY;
         }
 

@@ -8,6 +8,8 @@ use std::path::PathBuf;
 pub struct UserVoiceProfile {
     pub phrase: String,
     pub mfcc_frames: Vec<[f32; NUM_CEPSTRA]>,
+    #[serde(default)]
+    pub sample_prototypes: Vec<Vec<[f32; NUM_CEPSTRA]>>,
     pub sample_count: usize,
     pub updated_at: u64,
 }
@@ -21,8 +23,8 @@ pub struct VoiceProfilesState {
 pub struct WakeWordTemplates {
     pub base_hey_voiceflow: Vec<[f32; NUM_CEPSTRA]>,
     pub base_hey_flow: Vec<[f32; NUM_CEPSTRA]>,
-    pub user_hey_voiceflow: Option<Vec<[f32; NUM_CEPSTRA]>>,
-    pub user_hey_flow: Option<Vec<[f32; NUM_CEPSTRA]>>,
+    pub user_hey_voiceflow: Option<Vec<Vec<[f32; NUM_CEPSTRA]>>>,
+    pub user_hey_flow: Option<Vec<Vec<[f32; NUM_CEPSTRA]>>>,
 }
 
 impl WakeWordTemplates {
@@ -45,21 +47,33 @@ impl WakeWordTemplates {
         let mut user_hey_flow = None;
 
         if let Some(p) = saved_profiles.hey_voiceflow {
+            let mut protos = p.sample_prototypes;
+            if protos.is_empty() && !p.mfcc_frames.is_empty() {
+                protos.push(p.mfcc_frames);
+            }
             println!(
-                "[WakeWord Templates] Loaded enrolled user voice profile for 'Hey VoiceFlow' ({} frames, {} samples)",
-                p.mfcc_frames.len(),
-                p.sample_count
+                "[WakeWord Templates] Loaded enrolled user voice profile for 'Hey VoiceFlow' ({} prototypes, {} total frames)",
+                protos.len(),
+                protos.iter().map(|s| s.len()).sum::<usize>()
             );
-            user_hey_voiceflow = Some(p.mfcc_frames);
+            if !protos.is_empty() {
+                user_hey_voiceflow = Some(protos);
+            }
         }
 
         if let Some(p) = saved_profiles.hey_flow {
+            let mut protos = p.sample_prototypes;
+            if protos.is_empty() && !p.mfcc_frames.is_empty() {
+                protos.push(p.mfcc_frames);
+            }
             println!(
-                "[WakeWord Templates] Loaded enrolled user voice profile for 'Hey Flow' ({} frames, {} samples)",
-                p.mfcc_frames.len(),
-                p.sample_count
+                "[WakeWord Templates] Loaded enrolled user voice profile for 'Hey Flow' ({} prototypes, {} total frames)",
+                protos.len(),
+                protos.iter().map(|s| s.len()).sum::<usize>()
             );
-            user_hey_flow = Some(p.mfcc_frames);
+            if !protos.is_empty() {
+                user_hey_flow = Some(protos);
+            }
         }
 
         Self {
@@ -68,6 +82,21 @@ impl WakeWordTemplates {
             user_hey_voiceflow,
             user_hey_flow,
         }
+    }
+
+    /// Computes the minimum DTW distance between the query and an ensemble of prototype templates
+    pub fn min_ensemble_distance(
+        query: &[[f32; NUM_CEPSTRA]],
+        prototypes: &[Vec<[f32; NUM_CEPSTRA]>],
+    ) -> f32 {
+        let mut min_dist = f32::INFINITY;
+        for tpl in prototypes {
+            let d = DtwMatcher::distance(query, tpl);
+            if d < min_dist {
+                min_dist = d;
+            }
+        }
+        min_dist
     }
 
     /// Selects the best prototype from multiple recorded voice calibration samples using pairwise DTW medoid selection
@@ -143,7 +172,11 @@ pub fn load_user_profiles() -> VoiceProfilesState {
     VoiceProfilesState::default()
 }
 
-pub fn save_user_profile(phrase: &str, frames: Vec<[f32; NUM_CEPSTRA]>, sample_count: usize) -> Result<(), String> {
+pub fn save_user_profile(
+    phrase: &str,
+    best_prototype: Vec<[f32; NUM_CEPSTRA]>,
+    all_prototypes: Vec<Vec<[f32; NUM_CEPSTRA]>>,
+) -> Result<(), String> {
     let dir = get_profiles_dir();
     fs::create_dir_all(&dir).map_err(|e| format!("Failed to create profile dir: {}", e))?;
 
@@ -153,10 +186,12 @@ pub fn save_user_profile(phrase: &str, frames: Vec<[f32; NUM_CEPSTRA]>, sample_c
         .map(|d| d.as_secs())
         .unwrap_or(0);
 
+    let count = all_prototypes.len().max(1);
     let profile = UserVoiceProfile {
         phrase: phrase.to_string(),
-        mfcc_frames: frames,
-        sample_count,
+        mfcc_frames: best_prototype,
+        sample_prototypes: all_prototypes,
+        sample_count: count,
         updated_at: now,
     };
 
@@ -171,7 +206,10 @@ pub fn save_user_profile(phrase: &str, frames: Vec<[f32; NUM_CEPSTRA]>, sample_c
         .map_err(|e| format!("Failed to serialize voice profile: {}", e))?;
 
     fs::write(&file_path, json_data).map_err(|e| format!("Failed to write profile file: {}", e))?;
-    println!("[WakeWord Calibration] Saved enrolled voice profile to {:?}", file_path);
+    println!(
+        "[WakeWord Calibration] Saved enrolled voice profile with {} prototypes to {:?}",
+        count, file_path
+    );
 
     Ok(())
 }
@@ -272,4 +310,29 @@ fn synthesize_phrase_hey_flow() -> Vec<f32> {
     audio.extend(synthesize_phoneme(0.07, 120.0, &[(360.0, 80.0), (1150.0, 100.0), (2700.0, 150.0)], 0.10));
     audio.extend(synthesize_phoneme(0.22, 115.0, &[(490.0, 80.0), (880.0, 100.0), (2400.0, 200.0)], 0.05));
     audio
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_medoid_selection() {
+        let sample1 = vec![[0.5f32; NUM_CEPSTRA]; 20];
+        let sample2 = vec![[0.52f32; NUM_CEPSTRA]; 20];
+        let sample3 = vec![[0.9f32; NUM_CEPSTRA]; 20];
+
+        let best = WakeWordTemplates::select_best_prototype(&[sample1, sample2, sample3]);
+        assert_eq!(best.len(), 20);
+    }
+
+    #[test]
+    fn test_min_ensemble_distance() {
+        let query = vec![[1.0f32; NUM_CEPSTRA]; 20];
+        let tpl1 = vec![[-1.0f32; NUM_CEPSTRA]; 20]; // dissimilar
+        let tpl2 = vec![[1.0f32; NUM_CEPSTRA]; 20];  // identical
+
+        let min_d = WakeWordTemplates::min_ensemble_distance(&query, &[tpl1, tpl2]);
+        assert!(min_d < 1e-4, "Ensemble distance should pick the closest prototype, got {}", min_d);
+    }
 }

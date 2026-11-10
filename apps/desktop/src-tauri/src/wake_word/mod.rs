@@ -6,6 +6,7 @@ pub mod templates;
 
 pub use detector::WakeWordConfig;
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::AppHandle;
@@ -19,6 +20,7 @@ pub struct WakeWordService {
     config: Arc<Mutex<WakeWordConfig>>,
     buffer: Arc<Mutex<RingBuffer>>,
     calibration_samples: Vec<Vec<[f32; NUM_CEPSTRA]>>,
+    reload_flag: Arc<AtomicBool>,
     capture: Option<AudioCapture>,
     detector: Option<WakeWordDetector>,
 }
@@ -33,11 +35,13 @@ impl WakeWordService {
     pub fn new() -> Self {
         let buffer_capacity = (SAMPLE_RATE as f32 * 2.5) as usize;
         let buffer = Arc::new(Mutex::new(RingBuffer::new(buffer_capacity)));
+        let reload_flag = Arc::new(AtomicBool::new(false));
 
         Self {
             config: Arc::new(Mutex::new(WakeWordConfig::default())),
             buffer,
             calibration_samples: Vec::new(),
+            reload_flag,
             capture: None,
             detector: None,
         }
@@ -151,8 +155,9 @@ impl WakeWordService {
                         speech_dur.as_millis()
                     );
 
-                    // Extract the recent 1.5s speech audio
-                    let candidate_len = 24000.min(audio_samples.len());
+                    // Extract genuine speech audio with 200ms padding
+                    let speech_sample_count = ((speech_dur.as_secs_f32() + 0.20) * SAMPLE_RATE as f32) as usize;
+                    let candidate_len = speech_sample_count.clamp(7200, 24000).min(audio_samples.len());
                     let candidate_audio = &audio_samples[audio_samples.len() - candidate_len..];
 
                     let mfcc_frames = extractor.extract(candidate_audio);
@@ -170,9 +175,10 @@ impl WakeWordService {
                     );
 
                     if current_count >= 3 {
-                        println!("[WakeWord Calibration] All 3 samples gathered! Ensembling medoid prototype...");
+                        println!("[WakeWord Calibration] All 3 samples gathered! Ensembling prototypes...");
                         let best_prototype = WakeWordTemplates::select_best_prototype(&self.calibration_samples);
-                        save_user_profile(&phrase, best_prototype, 3)?;
+                        save_user_profile(&phrase, best_prototype, self.calibration_samples.clone())?;
+                        self.reload_flag.store(true, Ordering::Relaxed);
                         self.calibration_samples.clear();
 
                         return Ok(serde_json::json!({
@@ -206,7 +212,9 @@ impl WakeWordService {
     }
 
     pub fn reset_enrollment(&mut self, phrase: &str) -> Result<(), String> {
-        delete_user_profile(phrase)
+        delete_user_profile(phrase)?;
+        self.reload_flag.store(true, Ordering::Relaxed);
+        Ok(())
     }
 
     pub fn start_listening(&mut self, app: &AppHandle) {
@@ -222,6 +230,7 @@ impl WakeWordService {
                     app.clone(),
                     self.buffer.clone(),
                     self.config.clone(),
+                    self.reload_flag.clone(),
                 );
                 self.capture = Some(capture);
                 self.detector = Some(detector);

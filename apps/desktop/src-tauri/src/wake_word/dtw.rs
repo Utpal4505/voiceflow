@@ -37,9 +37,9 @@ impl DtwMatcher {
             return f32::INFINITY;
         }
 
-        // Allow reasonable temporal warping (speech rate variability of +/- 50%)
+        // Allow reasonable temporal warping (speech rate variability of 35% to 285%)
         let ratio = n as f32 / m as f32;
-        if ratio < 0.40 || ratio > 2.5 {
+        if ratio < 0.35 || ratio > 2.85 {
             return f32::INFINITY;
         }
 

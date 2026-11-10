@@ -129,18 +129,20 @@ pub fn get_window_context(hwnd: isize) -> AppContext {
 
 #[cfg(target_os = "macos")]
 pub fn get_window_context(_hwnd: isize) -> AppContext {
-    use cocoa::appkit::NSWorkspace;
-    use cocoa::base::nil;
-    use objc::{msg_send, sel, sel_impl};
+    use objc::{class, msg_send, sel, sel_impl};
 
     unsafe {
-        let workspace = NSWorkspace::sharedWorkspace(nil);
-        let active_app: cocoa::base::id = msg_send![workspace, frontmostApplication];
+        let workspace: *mut objc::runtime::Object = msg_send![class!(NSWorkspace), sharedWorkspace];
+        if workspace.is_null() {
+            return AppContext::default();
+        }
+
+        let active_app: *mut objc::runtime::Object = msg_send![workspace, frontmostApplication];
         if active_app.is_null() {
             return AppContext::default();
         }
 
-        let localized_name: cocoa::base::id = msg_send![active_app, localizedName];
+        let localized_name: *mut objc::runtime::Object = msg_send![active_app, localizedName];
         if localized_name.is_null() {
             return AppContext::default();
         }

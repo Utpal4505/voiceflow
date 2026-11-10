@@ -120,6 +120,7 @@ pub fn is_overlay_window_visible(overlay: &tauri::WebviewWindow) -> bool {
     overlay.is_visible().unwrap_or(false)
 }
 
+#[cfg(target_os = "windows")]
 fn is_voiceflow_hwnd(app: &AppHandle, hwnd: isize) -> bool {
     if hwnd == 0 {
         return true;
@@ -138,6 +139,11 @@ fn is_voiceflow_hwnd(app: &AppHandle, hwnd: isize) -> bool {
             }
         }
     }
+    false
+}
+
+#[cfg(not(target_os = "windows"))]
+fn is_voiceflow_hwnd(_app: &AppHandle, _hwnd: isize) -> bool {
     false
 }
 

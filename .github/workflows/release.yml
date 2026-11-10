@@ -95,19 +95,17 @@ jobs:
 
       - name: Publish macOS DMG to Public Releases Repo
         uses: softprops/action-gh-release@v2
-        if: ${{ env.RELEASE_TOKEN != '' }}
+        if: ${{ secrets.PUBLIC_RELEASE_TOKEN != '' }}
         with:
+          token: ${{ secrets.PUBLIC_RELEASE_TOKEN }}
           repository: Utpal4505/voiceflow-releases
           tag_name: ${{ steps.pkg_version.outputs.tag_name }}
           name: VoiceFlow v${{ steps.pkg_version.outputs.version }}
-          generate_release_notes: true
+          generate_release_notes: false
           draft: false
           prerelease: false
           files: |
             apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
-        env:
-          RELEASE_TOKEN: ${{ secrets.PUBLIC_RELEASE_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.PUBLIC_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
 
   build-windows:
     if: ${{ github.event.inputs.platform == 'all' || github.event.inputs.platform == 'windows' || github.event_name != 'workflow_dispatch' }}
@@ -167,12 +165,13 @@ jobs:
 
       - name: Publish Windows Assets to Public Releases Repo
         uses: softprops/action-gh-release@v2
-        if: ${{ env.RELEASE_TOKEN != '' }}
+        if: ${{ secrets.PUBLIC_RELEASE_TOKEN != '' }}
         with:
+          token: ${{ secrets.PUBLIC_RELEASE_TOKEN }}
           repository: Utpal4505/voiceflow-releases
           tag_name: ${{ steps.pkg_version.outputs.tag_name }}
           name: VoiceFlow v${{ steps.pkg_version.outputs.version }}
-          generate_release_notes: true
+          generate_release_notes: false
           draft: false
           prerelease: false
           files: |
@@ -180,6 +179,3 @@ jobs:
             apps/desktop/src-tauri/target/release/bundle/nsis/VoiceFlow_*_x64.nsis.zip
             apps/desktop/src-tauri/target/release/bundle/nsis/VoiceFlow_*_x64.nsis.zip.sig
             apps/desktop/src-tauri/target/release/bundle/nsis/latest.json
-        env:
-          RELEASE_TOKEN: ${{ secrets.PUBLIC_RELEASE_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.PUBLIC_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}

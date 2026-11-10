@@ -68,3 +68,23 @@ impl DtwMatcher {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_dtw_self_distance_is_zero() {
+        let dummy = vec![[1.0f32; NUM_CEPSTRA]; 20];
+        let dist = DtwMatcher::distance(&dummy, &dummy);
+        assert!(dist < 1e-5, "Self distance should be ~0, got {}", dist);
+    }
+
+    #[test]
+    fn test_dtw_dissimilar_distance() {
+        let pattern_a = vec![[1.0f32; NUM_CEPSTRA]; 20];
+        let pattern_b = vec![[5.0f32; NUM_CEPSTRA]; 20];
+        let dist = DtwMatcher::distance(&pattern_a, &pattern_b);
+        assert!(dist > 1.0, "Dissimilar patterns should have high distance, got {}", dist);
+    }
+}

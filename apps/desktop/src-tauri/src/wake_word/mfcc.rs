@@ -181,3 +181,23 @@ impl MfccExtractor {
         powers
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_mfcc_extraction_dimensions() {
+        let extractor = MfccExtractor::new();
+        // 1 second of synthetic 440Hz sine wave
+        let mut audio = Vec::with_capacity(SAMPLE_RATE);
+        for i in 0..SAMPLE_RATE {
+            let t = i as f32 / SAMPLE_RATE as f32;
+            audio.push((2.0 * PI * 440.0 * t).sin());
+        }
+
+        let mfccs = extractor.extract(&audio);
+        assert!(!mfccs.is_empty(), "MFCC output should not be empty");
+        assert_eq!(mfccs[0].len(), NUM_CEPSTRA, "Each frame should have 13 cepstral coefficients");
+    }
+}

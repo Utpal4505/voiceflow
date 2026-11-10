@@ -55,36 +55,53 @@ export default function OverlayWindow() {
   const prerollBufferRef = useRef<ArrayBuffer | null>(null);
   const seqOffsetRef = useRef<number>(0);
   const hasSpokenRef = useRef<boolean>(false);
-  const silentFramesRef = useRef<number>(0);
+  const lastVoiceTimeRef = useRef<number>(0);
   const transcriptRef = useRef(transcript);
   transcriptRef.current = transcript;
+  const volumeRef = useRef<number>(0);
   const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null);
 
-  const onChunkCallback = useCallback((chunk: ArrayBuffer, seq: number, chunkVolume: number = 0) => {
+  const onChunkCallback = useCallback((chunk: ArrayBuffer, seq: number) => {
     handleAudioChunkRef.current(chunk, seq);
 
     if (Date.now() - startTimeRef.current > MAX_RECORDING_MS) {
       console.warn("[Overlay] Max recording limit reached, submitting...");
       handleSubmitRef.current();
+    }
+  }, []);
+
+  const { isRecording, volume, isSilent, error: audioError, startRecording, stopRecording } =
+    useAudio(onChunkCallback);
+  volumeRef.current = volume;
+
+  // Wall-Clock Adaptive Silence Auto-Submit Monitor
+  useEffect(() => {
+    if (sessionState !== "recording") {
+      hasSpokenRef.current = false;
+      lastVoiceTimeRef.current = 0;
+      setCountdownSeconds(null);
       return;
     }
 
-    // Adaptive Silence Auto-Submit Engine
-    if (sessionStateRef.current === "recording") {
-      if (chunkVolume >= 0.016) {
-        // Voice activity detected: reset silence counter and cancel any pending countdown
+    const timer = setInterval(() => {
+      const currentVol = volumeRef.current;
+      const currentText = (transcriptRef.current?.text || "").trim().toLowerCase();
+
+      // Voice onset: active volume >= 0.008 OR partial transcript text has arrived!
+      if (currentVol >= 0.008 || currentText.length > 0) {
         if (!hasSpokenRef.current) {
           hasSpokenRef.current = true;
-          console.log("[Overlay] Voice onset detected in recording session");
+          console.log("[Overlay] Voice onset detected (volume:", currentVol.toFixed(4), "text:", currentText, ")");
         }
-        silentFramesRef.current = 0;
+        lastVoiceTimeRef.current = Date.now();
         setCountdownSeconds((prev) => (prev !== null ? null : prev));
-      } else if (hasSpokenRef.current) {
-        // Voice was previously detected; count consecutive 100ms silent chunks
-        silentFramesRef.current += 1;
+        return;
+      }
 
-        // Check if the current partial transcript indicates an action/command
-        const currentText = (transcriptRef.current?.text || "").trim().toLowerCase();
+      // If speech was active previously, and now we are in silence:
+      if (hasSpokenRef.current && lastVoiceTimeRef.current > 0) {
+        const silenceMs = Date.now() - lastVoiceTimeRef.current;
+
         const isCommand =
           currentText.startsWith("open ") ||
           currentText.startsWith("launch ") ||
@@ -93,31 +110,32 @@ export default function OverlayWindow() {
           currentText.startsWith("google ") ||
           currentText.startsWith("youtube ");
 
-        // Command mode: 7 frames (~700ms) for snappy instant execution
-        // Long dictation: 22 frames (~2.2s) to allow natural thinking pauses
-        const silenceLimit = isCommand ? 7 : 22;
+        // Commands: 750ms silence window for instant execution
+        // Long dictation: 2200ms silence window to allow natural thinking pauses
+        const silenceLimitMs = isCommand ? 750 : 2200;
 
-        // Visual Countdown: Display in HUD capsule when approaching silence limit on dictation
-        if (!isCommand && silentFramesRef.current >= 13 && silentFramesRef.current < silenceLimit) {
-          const remaining = Math.max(1, Math.ceil((silenceLimit - silentFramesRef.current) / 10));
-          setCountdownSeconds(remaining);
+        // Visual Countdown during dictation thinking pause (at >= 1200ms)
+        if (!isCommand && silenceMs >= 1200 && silenceMs < silenceLimitMs) {
+          const remainingSec = Math.max(1, Math.ceil((silenceLimitMs - silenceMs) / 1000));
+          setCountdownSeconds(remainingSec);
+        } else if (isCommand || silenceMs < 1200) {
+          setCountdownSeconds((prev) => (prev !== null ? null : prev));
         }
 
-        if (silentFramesRef.current >= silenceLimit) {
+        if (silenceMs >= silenceLimitMs) {
           console.log(
-            `[Overlay] Auto-submit triggered on silence (${silentFramesRef.current * 100}ms, isCommand: ${isCommand})`
+            `[Overlay] Auto-submit triggered on silence (${silenceMs}ms, isCommand: ${isCommand})`
           );
-          setCountdownSeconds(null);
-          silentFramesRef.current = 0;
           hasSpokenRef.current = false;
+          lastVoiceTimeRef.current = 0;
+          setCountdownSeconds(null);
           handleSubmitRef.current();
         }
       }
-    }
-  }, []);
+    }, 100);
 
-  const { isRecording, volume, isSilent, error: audioError, startRecording, stopRecording } =
-    useAudio(onChunkCallback);
+    return () => clearInterval(timer);
+  }, [sessionState]);
 
   const handleAudioChunk = useCallback(
     (chunk: ArrayBuffer, seq: number) => {
@@ -140,7 +158,7 @@ export default function OverlayWindow() {
     seqOffsetRef.current = 0;
     hasInsertedRef.current = false;
     hasSpokenRef.current = false;
-    silentFramesRef.current = 0;
+    lastVoiceTimeRef.current = 0;
     setCountdownSeconds(null);
     setExecutingAction(null);
   }, [cancelSession, stopRecording]);
@@ -277,7 +295,7 @@ export default function OverlayWindow() {
     startTimeRef.current = Date.now();
     hasInsertedRef.current = false;
     hasSpokenRef.current = false;
-    silentFramesRef.current = 0;
+    lastVoiceTimeRef.current = 0;
     setCountdownSeconds(null);
 
     startSession(sessionId);

@@ -459,9 +459,6 @@ fn is_dictation_shortcut(shortcut: &Shortcut) -> bool {
     }
 }
 
-static SHORTCUT_PRESS_TIME: std::sync::Mutex<Option<std::time::Instant>> =
-    std::sync::Mutex::new(None);
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(target_os = "windows")]
@@ -479,43 +476,70 @@ pub fn run() {
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
                     if is_dictation_shortcut(shortcut) {
-                        match event.state() {
-                            ShortcutState::Pressed => {
-                                let mut guard = SHORTCUT_PRESS_TIME.lock().unwrap();
-                                if guard.is_none() {
-                                    *guard = Some(std::time::Instant::now());
-                                    if let Some(overlay) = app.get_webview_window("overlay") {
-                                        if !is_overlay_window_visible(&overlay) {
-                                            println!("[Shortcut] Pressed: Showing overlay for dictation");
-                                            show_overlay(app.clone());
-                                        } else {
-                                            println!("[Shortcut] Pressed: Overlay is already visible, toggling off");
-                                            toggle_overlay(app.clone());
-                                        }
+                        #[cfg(target_os = "windows")]
+                        {
+                            if event.state() == ShortcutState::Pressed {
+                                use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+                                    GetAsyncKeyState, VK_CONTROL, VK_SPACE,
+                                };
+
+                                if let Some(overlay) = app.get_webview_window("overlay") {
+                                    if is_overlay_window_visible(&overlay) {
+                                        println!("[Shortcut] Pressed while overlay visible: toggling off");
+                                        toggle_overlay(app.clone());
+                                        return;
                                     }
                                 }
+
+                                println!("[Shortcut] Pressed: Showing overlay for dictation");
+                                show_overlay(app.clone());
+
+                                // Win32 RegisterHotKey only generates press events, never release.
+                                // Poll GetAsyncKeyState in background thread for true Push-to-Talk hold-and-release
+                                let app_handle = app.clone();
+                                std::thread::spawn(move || {
+                                    let press_start = std::time::Instant::now();
+                                    // Settle initial key states
+                                    std::thread::sleep(std::time::Duration::from_millis(60));
+
+                                    loop {
+                                        std::thread::sleep(std::time::Duration::from_millis(25));
+                                        let space_down = unsafe { GetAsyncKeyState(VK_SPACE as i32) < 0 };
+                                        let ctrl_down = unsafe { GetAsyncKeyState(VK_CONTROL as i32) < 0 };
+
+                                        // If user released EITHER Space or Control
+                                        if !space_down || !ctrl_down {
+                                            let elapsed = press_start.elapsed();
+                                            if elapsed >= std::time::Duration::from_millis(350) {
+                                                println!(
+                                                    "[Push-to-Talk] Released after {}ms! Submitting recording...",
+                                                    elapsed.as_millis()
+                                                );
+                                                let _ = app_handle.emit("overlay:submit", ());
+                                                if let Some(overlay) = app_handle.get_webview_window("overlay") {
+                                                    let _ = overlay.emit("overlay:submit", ());
+                                                }
+                                            } else {
+                                                println!(
+                                                    "[Shortcut] Quick tap detected ({}ms). Overlay remains open for dictation.",
+                                                    elapsed.as_millis()
+                                                );
+                                            }
+                                            break;
+                                        }
+
+                                        if press_start.elapsed() > std::time::Duration::from_secs(120) {
+                                            break;
+                                        }
+                                    }
+                                });
                             }
-                            ShortcutState::Released => {
-                                let mut guard = SHORTCUT_PRESS_TIME.lock().unwrap();
-                                if let Some(press_time) = guard.take() {
-                                    let elapsed = press_time.elapsed();
-                                    // If held for >= 350ms, this was a deliberate Push-to-Talk gesture!
-                                    if elapsed >= std::time::Duration::from_millis(350) {
-                                        println!(
-                                            "[Shortcut] Push-to-Talk release detected (held for {}ms)! Emitting overlay:submit",
-                                            elapsed.as_millis()
-                                        );
-                                        let _ = app.emit("overlay:submit", ());
-                                        if let Some(overlay) = app.get_webview_window("overlay") {
-                                            let _ = overlay.emit("overlay:submit", ());
-                                        }
-                                    } else {
-                                        println!(
-                                            "[Shortcut] Tap-to-Toggle detected (held for {}ms). Overlay stays open.",
-                                            elapsed.as_millis()
-                                        );
-                                    }
-                                }
+                        }
+
+                        #[cfg(not(target_os = "windows"))]
+                        {
+                            if event.state() == ShortcutState::Pressed {
+                                toggle_overlay(app.clone());
                             }
                         }
                     }

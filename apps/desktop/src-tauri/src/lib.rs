@@ -7,6 +7,7 @@ pub mod keyboard_hook;
 pub mod server_manager;
 pub mod tray;
 pub mod wake_word;
+pub mod voice_actions;
 
 use std::str::FromStr;
 use tauri::{AppHandle, Emitter, Manager};
@@ -385,6 +386,16 @@ fn set_wake_word_os_suspended(app: AppHandle, suspended: bool) {
 }
 
 #[tauri::command]
+fn parse_voice_action(text: String) -> Option<voice_actions::ActionIntent> {
+    voice_actions::parse_voice_command(&text)
+}
+
+#[tauri::command]
+fn execute_voice_action(action: voice_actions::ActionIntent) -> voice_actions::ActionResult {
+    voice_actions::execute_intent(action)
+}
+
+#[tauri::command]
 fn insert_text(app: AppHandle, text: String) -> Result<(), String> {
     println!("[Rust Insert] insert_text command called. Text length: {}", text.len());
     #[cfg(target_os = "windows")]
@@ -565,7 +576,9 @@ pub fn run() {
             get_wake_word_enrollment,
             reset_wake_word_enrollment,
             get_wake_word_preroll_audio,
-            set_wake_word_os_suspended
+            set_wake_word_os_suspended,
+            parse_voice_action,
+            execute_voice_action
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")

@@ -27,12 +27,14 @@ interface SettingsState {
   wakeWordPhrase: WakeWordPhrase;
   wakeWordSensitivity: number;
   enrollmentInfo: EnrollmentInfo;
+  voiceActionsEnabled: boolean;
 
   setSelectedDeviceId: (id: string) => void;
   setTelemetryEnabled: (enabled: boolean) => void;
   setWakeWordEnabled: (enabled: boolean) => Promise<void>;
   setWakeWordPhrase: (phrase: WakeWordPhrase) => Promise<void>;
   setWakeWordSensitivity: (sensitivity: number) => Promise<void>;
+  setVoiceActionsEnabled: (enabled: boolean) => void;
   refreshDevices: () => Promise<void>;
   refreshEnrollment: () => Promise<void>;
   resetEnrollment: (phrase: string) => Promise<void>;
@@ -43,6 +45,7 @@ const STORAGE_KEY_MIC = "voiceflow_selected_mic";
 const STORAGE_KEY_WW_ENABLED = "voiceflow_wakeword_enabled";
 const STORAGE_KEY_WW_PHRASE = "voiceflow_wakeword_phrase";
 const STORAGE_KEY_WW_SENSITIVITY = "voiceflow_wakeword_sensitivity";
+const STORAGE_KEY_VOICE_ACTIONS = "voiceflow_voice_actions_enabled";
 
 let isMonitoringInitialized = false;
 
@@ -114,6 +117,13 @@ function startGlobalDeviceMonitoring() {
       }
     }).catch(() => {});
 
+    listen<{ enabled: boolean }>("settings:voice-actions-changed", (event) => {
+      if (typeof event.payload?.enabled === "boolean") {
+        console.log("[SettingsStore] Received cross-window voice actions change:", event.payload.enabled);
+        useSettingsStore.setState({ voiceActionsEnabled: event.payload.enabled });
+      }
+    }).catch(() => {});
+
     listen("wake-word:calibration-complete", () => {
       console.log("[SettingsStore] Calibration complete event received, refreshing enrollment info");
       useSettingsStore.getState().refreshEnrollment();
@@ -139,6 +149,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   wakeWordEnabled: initialWw.enabled,
   wakeWordPhrase: initialWw.phrase,
   wakeWordSensitivity: initialWw.sensitivity,
+  voiceActionsEnabled: typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY_VOICE_ACTIONS) !== "false" : true,
   enrollmentInfo: {
     hasHeyVoiceflow: false,
     hasHeyFlow: false,
@@ -159,6 +170,16 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setTelemetryEnabled: (enabled: boolean) => {
     setTelemetryEnabled(enabled);
     set({ telemetryEnabled: enabled });
+  },
+
+  setVoiceActionsEnabled: (enabled: boolean) => {
+    localStorage.setItem(STORAGE_KEY_VOICE_ACTIONS, String(enabled));
+    set({ voiceActionsEnabled: enabled });
+    try {
+      emit("settings:voice-actions-changed", { enabled }).catch(() => {});
+    } catch {
+      // In browser preview
+    }
   },
 
   setWakeWordEnabled: async (enabled: boolean) => {

@@ -14,6 +14,7 @@ import {
   Mic,
   Radio,
   Volume2,
+  Compass,
 } from "lucide-react";
 import { useSettingsStore, WakeWordPhrase } from "../../stores/settingsStore";
 import { trackSettingsChanged } from "../../lib/telemetry";
@@ -57,6 +58,8 @@ export default function SettingsModal({
     wakeWordPhrase,
     wakeWordSensitivity,
     enrollmentInfo,
+    voiceActionsEnabled,
+    setVoiceActionsEnabled,
     setWakeWordEnabled,
     setWakeWordPhrase,
     setWakeWordSensitivity,
@@ -464,6 +467,62 @@ export default function SettingsModal({
                       </div>
                     )}
                   </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Section: Smart Voice Actions & Open Command */}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
+                Smart Voice Actions
+              </span>
+              {voiceActionsEnabled && (
+                <span className="inline-flex items-center gap-1.5 text-[10px] text-purple-400 font-medium">
+                  <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-pulse" />
+                  Commands Active
+                </span>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-white/[0.07] bg-[#141414] overflow-hidden shadow-inner">
+              <div className="flex items-center justify-between p-3.5">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
+                      voiceActionsEnabled ? "bg-purple-500/20 text-purple-400" : "bg-white/[0.04] text-slate-500"
+                    }`}
+                  >
+                    <Compass className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs font-medium text-slate-200">App & Web Command Intents</span>
+                    <span className="text-[11px] text-slate-500">
+                      Say "Open VS Code", "Open gdha.online", or "Search YouTube for lo-fi"
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setVoiceActionsEnabled(!voiceActionsEnabled)}
+                  role="switch"
+                  aria-checked={voiceActionsEnabled}
+                  className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 cursor-pointer ${
+                    voiceActionsEnabled ? "bg-purple-600 shadow-[0_0_10px_rgba(147,51,234,0.45)]" : "bg-white/[0.12]"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform duration-200 ${
+                      voiceActionsEnabled ? "translate-x-4.5" : "translate-x-1"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {voiceActionsEnabled && (
+                <div className="p-3 border-t border-white/[0.04] bg-white/[0.01] text-[11px] text-slate-400 leading-relaxed">
+                  VoiceFlow recognizes commands starting with <code className="text-purple-300 bg-white/[0.06] px-1.5 py-0.5 rounded">open</code>, <code className="text-purple-300 bg-white/[0.06] px-1.5 py-0.5 rounded">launch</code>, or <code className="text-purple-300 bg-white/[0.06] px-1.5 py-0.5 rounded">search</code> and runs them directly without typing text into your document.
                 </div>
               )}
             </div>

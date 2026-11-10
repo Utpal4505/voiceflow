@@ -1,13 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import WaveformBars from "../components/overlay/WaveformBars";
 import { useAudio } from "../hooks/useAudio";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { useHistoryStore } from "../stores/historyStore";
 import { useSettingsStore } from "../stores/settingsStore";
 import VoiceFlowLogo from "../components/common/VoiceFlowLogo";
-import { Mic, Check, AlertCircle, Loader2 } from "lucide-react";
+import { Mic, Check, AlertCircle, Loader2, Globe, Search, Sparkles } from "lucide-react";
 import { trackDictationCompleted, trackInsertionFailed } from "../lib/telemetry";
 import { audioChime } from "../utils/audioChime";
 
@@ -17,6 +17,10 @@ export default function OverlayWindow() {
   const currentSessionIdRef = useRef<string | null>(null);
   const startTimeRef = useRef<number>(0);
   const hasInsertedRef = useRef(false);
+  const [executingAction, setExecutingAction] = useState<{
+    label: string;
+    category: "app" | "web" | "search";
+  } | null>(null);
 
   const { addHistoryItem } = useHistoryStore();
   const { initDeviceListener } = useSettingsStore();
@@ -83,6 +87,7 @@ export default function OverlayWindow() {
     prerollBufferRef.current = null;
     seqOffsetRef.current = 0;
     hasInsertedRef.current = false;
+    setExecutingAction(null);
   }, [cancelSession, stopRecording]);
 
   const cleanupStateRef = useRef(cleanupState);
@@ -103,6 +108,51 @@ export default function OverlayWindow() {
     async (textToInsert: string) => {
       console.log("[Overlay] handleInsert called with:", textToInsert, "hasInserted:", hasInsertedRef.current);
       if (hasInsertedRef.current || !textToInsert) return;
+
+      // Smart Voice Action Interception (App Launcher / Web Search / Domain Open)
+      const { voiceActionsEnabled } = useSettingsStore.getState();
+      if (voiceActionsEnabled) {
+        try {
+          const action = await invoke<{ type: string; payload: any } | null>("parse_voice_action", {
+            text: textToInsert,
+          });
+
+          if (action) {
+            console.log("[Overlay] Intercepted Smart Voice Action:", action);
+            hasInsertedRef.current = true;
+
+            let label = "Executing action…";
+            let category: "app" | "web" | "search" = "app";
+
+            if (action.type === "OpenUrl") {
+              label = `Opening ${action.payload.domain}…`;
+              category = "web";
+            } else if (action.type === "SearchWeb") {
+              label = `Searching ${action.payload.provider}: "${action.payload.query}"…`;
+              category = "search";
+            } else if (action.type === "LaunchApp") {
+              label = `Launching ${action.payload.display_name}…`;
+              category = "app";
+            }
+
+            setExecutingAction({ label, category });
+            audioChime.playWakeChime();
+
+            // Execute action natively via Rust
+            await invoke("execute_voice_action", { action });
+
+            // Allow brief visual feedback, then cleanly close overlay without typing text
+            setTimeout(() => {
+              setExecutingAction(null);
+              handleClose();
+            }, 850);
+            return;
+          }
+        } catch (actionErr) {
+          console.warn("[Overlay] Voice action parser check error:", actionErr);
+        }
+      }
+
       hasInsertedRef.current = true;
 
       // Add to local history log
@@ -315,7 +365,17 @@ export default function OverlayWindow() {
       <div className="vf-hud-container w-full max-w-[440px] justify-between">
         {/* VoiceFlow Brand Mark / State Orb */}
         <div className="relative flex h-7 w-7 shrink-0 items-center justify-center">
-          {sessionState === "recording" ? (
+          {executingAction ? (
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#8B5CF6] shadow-[0_0_15px_rgba(139,92,246,0.6)] animate-pulse">
+              {executingAction.category === "search" ? (
+                <Search className="h-3.5 w-3.5 text-white" />
+              ) : executingAction.category === "web" ? (
+                <Globe className="h-3.5 w-3.5 text-white" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5 text-white" />
+              )}
+            </div>
+          ) : sessionState === "recording" ? (
             <div className="vf-mic-badge">
               <span
                 className="absolute -inset-1 rounded-full bg-[#FF5722]/50 blur-[3px] transition-opacity duration-150 animate-pulse"
@@ -350,7 +410,11 @@ export default function OverlayWindow() {
 
           <div className="flex flex-1 items-center truncate">
             <span className="truncate text-xs font-medium tracking-tight">
-              {sessionState === "processing" ? (
+              {executingAction ? (
+                <span className="text-[#C4B5FD] font-semibold animate-pulse">
+                  {executingAction.label}
+                </span>
+              ) : sessionState === "processing" ? (
                 <span className="text-[#FF8A65] font-semibold">Transcribing with Whisper…</span>
               ) : sessionState === "done" ? (
                 <span className="text-[#10B981] font-semibold">

@@ -48,6 +48,8 @@ export default function OverlayWindow() {
 
   const handleAudioChunkRef = useRef<(chunk: ArrayBuffer, seq: number) => void>(() => {});
   const handleSubmitRef = useRef<() => void>(() => {});
+  const prerollBufferRef = useRef<ArrayBuffer | null>(null);
+  const seqOffsetRef = useRef<number>(0);
 
   const onChunkCallback = useCallback((chunk: ArrayBuffer, seq: number) => {
     handleAudioChunkRef.current(chunk, seq);
@@ -64,7 +66,7 @@ export default function OverlayWindow() {
   const handleAudioChunk = useCallback(
     (chunk: ArrayBuffer, seq: number) => {
       if (currentSessionIdRef.current && isConnected) {
-        sendAudioChunk(currentSessionIdRef.current, seq, chunk);
+        sendAudioChunk(currentSessionIdRef.current, seq + seqOffsetRef.current, chunk);
       }
     },
     [isConnected, sendAudioChunk]
@@ -78,6 +80,8 @@ export default function OverlayWindow() {
       cancelSession(sessionId);
       currentSessionIdRef.current = null;
     }
+    prerollBufferRef.current = null;
+    seqOffsetRef.current = 0;
     hasInsertedRef.current = false;
   }, [cancelSession, stopRecording]);
 
@@ -161,7 +165,7 @@ export default function OverlayWindow() {
   }, [stopSession, transcript, handleInsert, stopRecording]);
   handleSubmitRef.current = handleSubmit;
 
-  const handleStartRecording = useCallback(() => {
+  const handleStartRecording = useCallback(async () => {
     const sessionId = crypto.randomUUID();
     console.log("[Overlay] handleStartRecording initiated with sessionId:", sessionId);
     currentSessionIdRef.current = sessionId;
@@ -169,8 +173,36 @@ export default function OverlayWindow() {
     hasInsertedRef.current = false;
 
     startSession(sessionId);
+
+    // Pillar 1: One-Breath Seamless Dictation - flush trailing pre-roll PCM audio chunk #0
+    try {
+      let preroll = prerollBufferRef.current;
+      if (!preroll) {
+        const pcmBytes = await invoke<number[] | null>("get_wake_word_preroll_audio");
+        if (pcmBytes && pcmBytes.length > 0) {
+          preroll = new Uint8Array(pcmBytes).buffer;
+        }
+      }
+
+      if (preroll && isConnected) {
+        console.log(
+          "[Overlay] Streaming one-breath pre-roll audio chunk (seq #0) to backend...",
+          preroll.byteLength,
+          "bytes"
+        );
+        sendAudioChunk(sessionId, 0, preroll);
+        prerollBufferRef.current = null;
+        seqOffsetRef.current = 1;
+      } else {
+        seqOffsetRef.current = 0;
+      }
+    } catch (err) {
+      console.warn("[Overlay] Pre-roll audio check completed (none or error):", err);
+      seqOffsetRef.current = 0;
+    }
+
     startRecording();
-  }, [startSession, startRecording]);
+  }, [startSession, isConnected, sendAudioChunk, startRecording]);
 
   const handleStartRecordingRef = useRef(handleStartRecording);
   handleStartRecordingRef.current = handleStartRecording;
@@ -220,9 +252,18 @@ export default function OverlayWindow() {
 
     async function registerTauriEvents() {
       try {
-        unlistenWakeWord = await listen<string>("wake-word:triggered", (event) => {
+        unlistenWakeWord = await listen<string>("wake-word:triggered", async (event) => {
           console.log("[Overlay] Wake word triggered by Rust listener:", event.payload);
           audioChime.playWakeChime();
+          try {
+            const preroll = await invoke<number[] | null>("get_wake_word_preroll_audio");
+            if (preroll && preroll.length > 0) {
+              prerollBufferRef.current = new Uint8Array(preroll).buffer;
+              console.log("[Overlay] Captured pre-roll audio buffer:", prerollBufferRef.current.byteLength, "bytes");
+            }
+          } catch (err) {
+            console.warn("[Overlay] Failed to fetch one-breath pre-roll audio:", err);
+          }
         });
 
         unlistenShow = await listen("overlay:show", () => {

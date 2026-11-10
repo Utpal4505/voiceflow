@@ -22,6 +22,8 @@ pub struct WakeWordService {
     buffer: Arc<Mutex<RingBuffer>>,
     calibration_samples: Vec<Vec<[f32; NUM_CEPSTRA]>>,
     reload_flag: Arc<AtomicBool>,
+    is_os_suspended: Arc<AtomicBool>,
+    preroll_cache: Arc<Mutex<Option<Vec<u8>>>>,
     capture: Option<AudioCapture>,
     detector: Option<WakeWordDetector>,
 }
@@ -37,14 +39,36 @@ impl WakeWordService {
         let buffer_capacity = (SAMPLE_RATE as f32 * 2.5) as usize;
         let buffer = Arc::new(Mutex::new(RingBuffer::new(buffer_capacity)));
         let reload_flag = Arc::new(AtomicBool::new(false));
+        let is_os_suspended = Arc::new(AtomicBool::new(false));
+        let preroll_cache = Arc::new(Mutex::new(None));
 
         Self {
             config: Arc::new(Mutex::new(WakeWordConfig::default())),
             buffer,
             calibration_samples: Vec::new(),
             reload_flag,
+            is_os_suspended,
+            preroll_cache,
             capture: None,
             detector: None,
+        }
+    }
+
+    pub fn pause_for_os_lock(&self) {
+        self.is_os_suspended.store(true, Ordering::SeqCst);
+        println!("[WakeWord Service] OS lock/suspend: wake-word listener paused");
+    }
+
+    pub fn resume_from_os_lock(&self) {
+        self.is_os_suspended.store(false, Ordering::SeqCst);
+        println!("[WakeWord Service] OS unlock/resume: wake-word listener re-armed");
+    }
+
+    pub fn get_preroll_audio(&self) -> Option<Vec<u8>> {
+        if let Ok(mut lock) = self.preroll_cache.lock() {
+            lock.take()
+        } else {
+            None
         }
     }
 
@@ -286,6 +310,8 @@ impl WakeWordService {
                     self.buffer.clone(),
                     self.config.clone(),
                     self.reload_flag.clone(),
+                    self.is_os_suspended.clone(),
+                    self.preroll_cache.clone(),
                 );
                 self.capture = Some(capture);
                 self.detector = Some(detector);

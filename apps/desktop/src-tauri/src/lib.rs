@@ -363,6 +363,28 @@ fn reset_wake_word_enrollment(app: AppHandle, phrase: String) -> Result<(), Stri
 }
 
 #[tauri::command]
+fn get_wake_word_preroll_audio(app: AppHandle) -> Option<Vec<u8>> {
+    let state = app.state::<AppState>();
+    if let Ok(service) = state.wake_word_service.lock() {
+        service.get_preroll_audio()
+    } else {
+        None
+    }
+}
+
+#[tauri::command]
+fn set_wake_word_os_suspended(app: AppHandle, suspended: bool) {
+    let state = app.state::<AppState>();
+    if let Ok(service) = state.wake_word_service.lock() {
+        if suspended {
+            service.pause_for_os_lock();
+        } else {
+            service.resume_from_os_lock();
+        }
+    }
+}
+
+#[tauri::command]
 fn insert_text(app: AppHandle, text: String) -> Result<(), String> {
     println!("[Rust Insert] insert_text command called. Text length: {}", text.len());
     #[cfg(target_os = "windows")]
@@ -541,7 +563,9 @@ pub fn run() {
             record_wake_word_calibration_step,
             cancel_wake_word_calibration,
             get_wake_word_enrollment,
-            reset_wake_word_enrollment
+            reset_wake_word_enrollment,
+            get_wake_word_preroll_audio,
+            set_wake_word_os_suspended
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")

@@ -6,7 +6,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use super::audio_stream::RingBuffer;
 use super::dtw::DtwMatcher;
 use super::mfcc::{MfccExtractor, SAMPLE_RATE};
-use super::templates::WakeWordTemplates;
+use super::templates::{self, WakeWordTemplates};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct WakeWordConfig {
@@ -35,6 +35,8 @@ impl WakeWordDetector {
         buffer: Arc<Mutex<RingBuffer>>,
         config: Arc<Mutex<WakeWordConfig>>,
         reload_flag: Arc<AtomicBool>,
+        is_os_suspended: Arc<AtomicBool>,
+        preroll_cache: Arc<Mutex<Option<Vec<u8>>>>,
     ) -> Self {
         let is_running = Arc::new(AtomicBool::new(true));
         let running_flag = is_running.clone();
@@ -47,11 +49,15 @@ impl WakeWordDetector {
             let mut last_log_time = Instant::now() - Duration::from_secs(10);
             let cooldown = Duration::from_millis(1500);
 
-            // Speech endpointing state tracker
+            // Speech endpointing & state trackers
             let mut is_speech_active = false;
             let mut speech_samples_accumulated: usize = 0;
             let mut silence_frame_count: usize = 0;
             let mut was_overlay_open = false;
+            let mut was_desktop_locked = false;
+
+            // Pillar 2: Dynamic ambient noise tracking (EMA baseline)
+            let mut ambient_noise_floor: f32 = 0.0050;
 
             let step_sleep_ms: u64 = 40;
             let step_samples = (SAMPLE_RATE as f32 * (step_sleep_ms as f32 / 1000.0)) as usize;
@@ -63,6 +69,46 @@ impl WakeWordDetector {
                 if reload_flag.swap(false, Ordering::Relaxed) {
                     println!("[WakeWord Detector] Reloading voice templates after profile update...");
                     templates = WakeWordTemplates::build(&extractor);
+                }
+
+                // Pillar 4: OS Power & Lock Screen Check
+                if is_os_suspended.load(Ordering::Relaxed) {
+                    is_speech_active = false;
+                    speech_samples_accumulated = 0;
+                    silence_frame_count = 0;
+                    std::thread::sleep(Duration::from_millis(250));
+                    continue;
+                }
+
+                #[cfg(target_os = "windows")]
+                let is_desktop_locked = {
+                    use windows_sys::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+                    unsafe { GetForegroundWindow().is_null() }
+                };
+                #[cfg(not(target_os = "windows"))]
+                let is_desktop_locked = false;
+
+                if is_desktop_locked {
+                    if !was_desktop_locked {
+                        println!("[WakeWord Detector] Workstation locked (Win+L); entering low-power sleep");
+                        was_desktop_locked = true;
+                    }
+                    is_speech_active = false;
+                    speech_samples_accumulated = 0;
+                    silence_frame_count = 0;
+                    std::thread::sleep(Duration::from_millis(500));
+                    continue;
+                }
+
+                if was_desktop_locked {
+                    println!("[WakeWord Detector] Workstation unlocked; re-arming listener with 1.2s cooldown");
+                    was_desktop_locked = false;
+                    last_trigger_time = Instant::now();
+                    is_speech_active = false;
+                    speech_samples_accumulated = 0;
+                    silence_frame_count = 0;
+                    std::thread::sleep(Duration::from_millis(200));
+                    continue;
                 }
 
                 // 1. Check if dictation overlay is visible
@@ -147,19 +193,23 @@ impl WakeWordDetector {
                 }
                 let rms = (sum_sq / check_len as f32).sqrt();
 
-                // Adaptive VAD threshold:
-                // Base ambient room noise floor is ~0.0035 - 0.0055
-                // Real conversational speech is ~0.015 - 0.045
+                // Pillar 2: Dynamic Auto-VAD (Adaptive noise tracking via Exponential Moving Average)
+                if !is_speech_active && rms < 0.025 {
+                    ambient_noise_floor = ambient_noise_floor * 0.96 + rms * 0.04;
+                }
+
+                // Adaptive VAD gate: floats at 2.2x ambient noise floor, clamped between 0.0070 and 0.0240
+                let base_gate = (ambient_noise_floor * 2.2).clamp(0.0070, 0.0240);
                 let vad_energy_threshold =
-                    (0.015 - current_config.sensitivity.clamp(0.0, 1.0) * 0.008).max(0.0065);
+                    (base_gate - (current_config.sensitivity.clamp(0.0, 1.0) - 0.5) * 0.006).max(0.0065);
 
                 // Periodic diagnostic logging every 2.5s
                 let now = Instant::now();
                 if now.duration_since(last_log_time) >= Duration::from_millis(2500) {
                     last_log_time = now;
                     println!(
-                        "[WakeWord Detector] Live Monitor: RMS={:.5} (VAD gate={:.5}) | Mode='{}' | Sens={:.2} | Active={}",
-                        rms, vad_energy_threshold, current_config.phrase, current_config.sensitivity, is_speech_active
+                        "[WakeWord Detector] Live Monitor: RMS={:.5} (VAD gate={:.5}, NoiseFloor={:.5}) | Mode='{}' | Sens={:.2} | Active={}",
+                        rms, vad_energy_threshold, ambient_noise_floor, current_config.phrase, current_config.sensitivity, is_speech_active
                     );
                 }
 
@@ -251,7 +301,6 @@ impl WakeWordDetector {
                     if let Some(prototypes) = &templates.user_hey_voiceflow {
                         let dist = WakeWordTemplates::min_ensemble_distance(&query_mfcc, prototypes);
                         // Enrolled threshold curve: 0.44 (sens 0.0) to 0.56 (sens 1.0) -> 0.506 at 0.55
-                        // Empirically isolates true speech (0.32 - 0.47) from other words (>= 0.53)
                         let threshold = 0.44 + current_config.sensitivity.clamp(0.0, 1.0) * 0.12;
                         println!(
                             "[WakeWord DTW] VoiceFlow (Enrolled User Profile - {} prototypes): Distance={:.3} vs Threshold={:.3}",
@@ -313,6 +362,25 @@ impl WakeWordDetector {
                         "[WakeWord Trigger] >>> WAKE WORD MATCHED! Phrase='{}' (Score={:.3} < Threshold={:.3}) <<<",
                         phrase_name, best_score, active_threshold
                     );
+
+                    // Pillar 1: Extract trailing ~500ms (8,000 samples @ 16kHz) for seamless one-breath command capture
+                    let preroll_len = 8000.min(audio_samples.len());
+                    let preroll_slice = &audio_samples[audio_samples.len() - preroll_len..];
+                    let mut pcm_bytes = Vec::with_capacity(preroll_len * 2);
+                    for &s in preroll_slice {
+                        let clamped = s.clamp(-1.0, 1.0);
+                        let val = (clamped * 32767.0) as i16;
+                        pcm_bytes.extend_from_slice(&val.to_le_bytes());
+                    }
+                    if let Ok(mut lock) = preroll_cache.lock() {
+                        *lock = Some(pcm_bytes);
+                    }
+
+                    // Pillar 3: Lifelong passive voice adaptation on high-confidence match (Score < 0.32)
+                    if best_score < 0.32 {
+                        let phrase_id = if phrase_name == "Hey Flow" { "hey_flow" } else { "hey_voiceflow" };
+                        let _ = templates::update_profile_with_live_sample(phrase_id, &query_mfcc);
+                    }
 
                     // Notify frontend overlay to play earcon chime
                     let _ = app.emit("wake-word:triggered", phrase_name);

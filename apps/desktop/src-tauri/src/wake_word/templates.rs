@@ -281,6 +281,83 @@ pub fn delete_user_profile(phrase: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Gently adapts enrolled voice prototype on high-confidence verified live matches (<0.32 DTW distance)
+/// Uses a rate-limited moving average (max once per 2 hours) to completely prevent template drift
+pub fn update_profile_with_live_sample(
+    phrase: &str,
+    live_sample: &[[f32; NUM_CEPSTRA]],
+) -> Result<bool, String> {
+    let mut profiles = load_user_profiles();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+
+    let profile_opt = if phrase == "hey_flow" {
+        &mut profiles.hey_flow
+    } else {
+        &mut profiles.hey_voiceflow
+    };
+
+    if let Some(profile) = profile_opt {
+        // Rate-limit: at most once per 2 hours (7200s) to guarantee zero drift risk
+        if now.saturating_sub(profile.updated_at) < 7200 {
+            return Ok(false);
+        }
+
+        if profile.sample_prototypes.is_empty() {
+            return Ok(false);
+        }
+
+        println!(
+            "[WakeWord Adaptation] High-confidence match! Softly adapting voice prototype for '{}'",
+            phrase
+        );
+
+        // Find the prototype that is most similar to live_sample
+        let mut best_idx = 0;
+        let mut min_d = f32::INFINITY;
+        for (i, proto) in profile.sample_prototypes.iter().enumerate() {
+            let d = DtwMatcher::distance(live_sample, proto);
+            if d < min_d {
+                min_d = d;
+                best_idx = i;
+            }
+        }
+
+        let target_len = profile.sample_prototypes[best_idx].len();
+        if target_len > 0 && !live_sample.is_empty() {
+            let live_resampled = time_stretch_frames(
+                live_sample,
+                target_len as f32 / live_sample.len() as f32,
+            );
+
+            // Soft 85/15 blend: 85% existing verified baseline + 15% today's live sample
+            for j in 0..target_len.min(live_resampled.len()) {
+                for k in 0..NUM_CEPSTRA {
+                    profile.sample_prototypes[best_idx][j][k] =
+                        profile.sample_prototypes[best_idx][j][k] * 0.85 + live_resampled[j][k] * 0.15;
+                }
+            }
+
+            profile.updated_at = now;
+
+            let dir = get_profiles_dir();
+            let file_path = dir.join("voice_profile.json");
+            if let Ok(json_data) = serde_json::to_string_pretty(&profiles) {
+                let _ = fs::write(&file_path, json_data);
+                println!(
+                    "[WakeWord Adaptation] Saved lifelong adapted voice profile to {:?}",
+                    file_path
+                );
+                return Ok(true);
+            }
+        }
+    }
+
+    Ok(false)
+}
+
 /// Generates synthetic audio waveform with specified formants and friction noise
 fn synthesize_phoneme(
     duration_sec: f32,

@@ -127,7 +127,41 @@ pub fn get_window_context(hwnd: isize) -> AppContext {
     }
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_os = "macos")]
+pub fn get_window_context(_hwnd: isize) -> AppContext {
+    use cocoa::appkit::NSWorkspace;
+    use cocoa::base::nil;
+    use objc::{msg_send, sel, sel_impl};
+
+    unsafe {
+        let workspace = NSWorkspace::sharedWorkspace(nil);
+        let active_app: cocoa::base::id = msg_send![workspace, frontmostApplication];
+        if active_app.is_null() {
+            return AppContext::default();
+        }
+
+        let localized_name: cocoa::base::id = msg_send![active_app, localizedName];
+        if localized_name.is_null() {
+            return AppContext::default();
+        }
+
+        let utf8_str: *const std::os::raw::c_char = msg_send![localized_name, UTF8String];
+        if utf8_str.is_null() {
+            return AppContext::default();
+        }
+
+        let app_name = std::ffi::CStr::from_ptr(utf8_str).to_string_lossy().into_owned();
+        let (friendly_name, category) = categorize_app(&app_name);
+
+        AppContext {
+            app_name: friendly_name.to_string(),
+            window_title: app_name,
+            category: category.to_string(),
+        }
+    }
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
 pub fn get_window_context(_hwnd: isize) -> AppContext {
     AppContext::default()
 }

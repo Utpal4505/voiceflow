@@ -9,9 +9,24 @@ static AUTOSTART_ITEM: Mutex<Option<CheckMenuItem<tauri::Wry>>> = Mutex::new(Non
 
 pub fn create_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let open_item = MenuItemBuilder::with_id("open", "Open VoiceFlow").build(app)?;
-    let toggle_item = MenuItemBuilder::with_id("toggle", "Toggle Dictation (Ctrl+Space)").build(app)?;
+
+    #[cfg(target_os = "macos")]
+    let toggle_label = "Toggle Dictation (Cmd+Space)";
+    #[cfg(not(target_os = "macos"))]
+    let toggle_label = "Toggle Dictation (Ctrl+Space)";
+
+    let toggle_item = MenuItemBuilder::with_id("toggle", toggle_label).build(app)?;
+
     let autostart_enabled = crate::autostart::is_autostart_enabled();
-    let autostart_item = CheckMenuItemBuilder::with_id("autostart", "Start with Windows")
+
+    #[cfg(target_os = "windows")]
+    let autostart_label = "Start with Windows";
+    #[cfg(target_os = "macos")]
+    let autostart_label = "Start at Login";
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    let autostart_label = "Start on System Boot";
+
+    let autostart_item = CheckMenuItemBuilder::with_id("autostart", autostart_label)
         .checked(autostart_enabled)
         .build(app)?;
 

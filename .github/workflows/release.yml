@@ -1,15 +1,116 @@
 name: Release VoiceFlow
 
-# Disabled automatic push triggers to avoid slow 15+ min Windows runner builds.
-# Trigger manually from GitHub Actions tab when needed, or use local `pnpm release`.
 on:
   workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform to build'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - macos
+          - windows
 
 permissions:
   contents: write
 
 jobs:
-  build-and-release:
+  build-macos:
+    if: ${{ github.event.inputs.platform == 'all' || github.event.inputs.platform == 'macos' || github.event_name != 'workflow_dispatch' }}
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9.15.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build whisper.cpp with Metal GPU Acceleration
+        run: |
+          git clone --depth 1 https://github.com/ggerganov/whisper.cpp
+          cmake -B whisper.cpp/build -S whisper.cpp -DGGML_METAL=ON
+          cmake --build whisper.cpp/build --config Release -j$(sysctl -n hw.ncpu)
+          mkdir -p apps/desktop/src-tauri/resources/bin
+          cp whisper.cpp/build/bin/whisper-cli apps/desktop/src-tauri/resources/bin/whisper-cli
+          chmod +x apps/desktop/src-tauri/resources/bin/whisper-cli
+
+      - name: Download Portable Node.js (arm64)
+        run: |
+          curl -fsSL https://nodejs.org/dist/v20.18.0/node-v20.18.0-darwin-arm64.tar.gz | tar -xz
+          cp node-v20.18.0-darwin-arm64/bin/node apps/desktop/src-tauri/resources/bin/node
+          chmod +x apps/desktop/src-tauri/resources/bin/node
+          rm -rf node-v20.18.0-darwin-arm64
+
+      - name: Install Monorepo Dependencies
+        run: pnpm install
+
+      - name: Build All Monorepo Packages
+        run: pnpm build
+
+      - name: Bundle NestJS Backend
+        run: |
+          mkdir -p apps/desktop/src-tauri/resources/server
+          pnpm dlx @vercel/ncc build apps/api/dist/main.js -o apps/desktop/src-tauri/resources/server -m
+
+      - name: Build macOS Desktop Application (.dmg)
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: pnpm --filter @voiceflow/desktop tauri build --bundles dmg
+
+      - name: Stage Convenient Permanent DMG Name
+        run: |
+          for f in apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg; do
+            cp "$f" apps/desktop/src-tauri/target/release/bundle/dmg/VoiceFlow.dmg
+            break
+          done
+
+      - name: Upload macOS Artifact (Direct Download from Actions)
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoiceFlow-macOS-AppleSilicon
+          path: apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
+
+      - name: Read Current Version
+        id: pkg_version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag_name=v$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Publish macOS DMG to Public Releases Repo
+        uses: softprops/action-gh-release@v2
+        if: ${{ env.RELEASE_TOKEN != '' }}
+        with:
+          repository: Utpal4505/voiceflow-releases
+          tag_name: ${{ steps.pkg_version.outputs.tag_name }}
+          name: VoiceFlow v${{ steps.pkg_version.outputs.version }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          files: |
+            apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
+        env:
+          RELEASE_TOKEN: ${{ secrets.PUBLIC_RELEASE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PUBLIC_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+
+  build-windows:
+    if: ${{ github.event.inputs.platform == 'all' || github.event.inputs.platform == 'windows' || github.event_name != 'workflow_dispatch' }}
     runs-on: windows-latest
 
     steps:
@@ -56,9 +157,19 @@ jobs:
           Write-Output "version=$($pkg.version)" >> $env:GITHUB_OUTPUT
           Write-Output "tag_name=v$($pkg.version)" >> $env:GITHUB_OUTPUT
 
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+      - name: Upload Windows Artifact (Direct Download from Actions)
+        uses: actions/upload-artifact@v4
         with:
+          name: VoiceFlow-Windows-x64
+          path: |
+            apps/desktop/src-tauri/target/release/bundle/nsis/VoiceFlow_*_x64-setup.exe
+            apps/desktop/src-tauri/target/release/bundle/nsis/VoiceFlow_*_x64-setup.zip
+
+      - name: Publish Windows Assets to Public Releases Repo
+        uses: softprops/action-gh-release@v2
+        if: ${{ env.RELEASE_TOKEN != '' }}
+        with:
+          repository: Utpal4505/voiceflow-releases
           tag_name: ${{ steps.pkg_version.outputs.tag_name }}
           name: VoiceFlow v${{ steps.pkg_version.outputs.version }}
           generate_release_notes: true
@@ -70,4 +181,5 @@ jobs:
             apps/desktop/src-tauri/target/release/bundle/nsis/VoiceFlow_*_x64.nsis.zip.sig
             apps/desktop/src-tauri/target/release/bundle/nsis/latest.json
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TOKEN: ${{ secrets.PUBLIC_RELEASE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PUBLIC_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}

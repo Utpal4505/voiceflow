@@ -124,5 +124,32 @@ pub fn simulate_paste() {
     }
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_os = "macos")]
+pub fn simulate_paste() {
+    use core_graphics::event::{CGEvent, CGEventFlags, CGKeyCode};
+    use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
+
+    if let Ok(source) = CGEventSource::new(CGEventSourceStateID::CombinedSessionState) {
+        let v_key: CGKeyCode = 9; // macOS virtual keycode for 'v'
+
+        // Small delay to allow clipboard buffer to settle
+        std::thread::sleep(std::time::Duration::from_millis(20));
+
+        // Cmd + V key down
+        if let Ok(event_down) = CGEvent::new_keyboard_event(source.clone(), v_key, true) {
+            event_down.set_flags(CGEventFlags::CGEventFlagCommand);
+            event_down.post(core_graphics::event::CGEventTapLocation::HID);
+        }
+
+        std::thread::sleep(std::time::Duration::from_millis(15));
+
+        // Cmd + V key up
+        if let Ok(event_up) = CGEvent::new_keyboard_event(source, v_key, false) {
+            event_up.set_flags(CGEventFlags::CGEventFlagCommand);
+            event_up.post(core_graphics::event::CGEventTapLocation::HID);
+        }
+    }
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
 pub fn simulate_paste() {}

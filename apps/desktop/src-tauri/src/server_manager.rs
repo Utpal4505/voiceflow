@@ -49,10 +49,15 @@ fn find_standalone_server() -> Option<PathBuf> {
     for root in &roots {
         let candidates = [
             root.join("voiceflow-server.exe"),
+            root.join("voiceflow-server"),
             root.join("server").join("voiceflow-server.exe"),
+            root.join("server").join("voiceflow-server"),
             root.join("bin").join("voiceflow-server.exe"),
+            root.join("bin").join("voiceflow-server"),
             root.join("resources").join("voiceflow-server.exe"),
+            root.join("resources").join("voiceflow-server"),
             root.join("resources").join("bin").join("voiceflow-server.exe"),
+            root.join("resources").join("bin").join("voiceflow-server"),
         ];
         for c in &candidates {
             if c.exists() {
@@ -103,11 +108,17 @@ fn find_node_binary(workdir: &PathBuf) -> PathBuf {
     for root in &roots {
         let candidates = [
             root.join("resources").join("bin").join("node.exe"),
+            root.join("resources").join("bin").join("node"),
             root.join("bin").join("node.exe"),
+            root.join("bin").join("node"),
             root.join("node.exe"),
+            root.join("node"),
             workdir.join("resources").join("bin").join("node.exe"),
+            workdir.join("resources").join("bin").join("node"),
             workdir.join("bin").join("node.exe"),
+            workdir.join("bin").join("node"),
             workdir.join("node.exe"),
+            workdir.join("node"),
         ];
 
         for c in &candidates {

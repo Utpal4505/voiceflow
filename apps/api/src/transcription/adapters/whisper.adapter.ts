@@ -24,19 +24,21 @@ export class WhisperCliAdapter implements ITranscriptionAdapter {
     const scriptDir = process.argv[1] ? path.dirname(process.argv[1]) : '';
     const nodeDir = path.dirname(process.execPath);
 
+    const isWindows = process.platform === 'win32';
+    const binName = isWindows ? 'whisper-cli.exe' : 'whisper-cli';
+
     const candidatePaths = [
-      path.join(nodeDir, 'whisper-cli.exe'),
-      path.resolve(scriptDir, '..', 'bin', 'whisper-cli.exe'),
-      path.resolve(scriptDir, 'bin', 'whisper-cli.exe'),
-      this.getAppDataPath('bin', 'whisper-cli.exe'),
+      path.join(nodeDir, binName),
+      path.resolve(scriptDir, '..', 'bin', binName),
+      path.resolve(scriptDir, 'bin', binName),
+      this.getAppDataPath('bin', binName),
       this.getAppDataPath('bin', 'whisper-cli'),
-      path.resolve(process.cwd(), 'bin', 'whisper-cli.exe'),
-      path.resolve(process.cwd(), 'bin', 'whisper-cli'),
-      path.resolve(process.cwd(), 'resources', 'bin', 'whisper-cli.exe'),
-      path.resolve(process.cwd(), '..', 'bin', 'whisper-cli.exe'),
-      path.resolve(process.cwd(), '..', '..', 'bin', 'whisper-cli.exe'),
-      path.resolve(process.cwd(), '..', 'resources', 'bin', 'whisper-cli.exe'),
-      path.resolve(nodeDir, 'resources', 'bin', 'whisper-cli.exe'),
+      path.resolve(process.cwd(), 'bin', binName),
+      path.resolve(process.cwd(), 'resources', 'bin', binName),
+      path.resolve(process.cwd(), '..', 'bin', binName),
+      path.resolve(process.cwd(), '..', '..', 'bin', binName),
+      path.resolve(process.cwd(), '..', 'resources', 'bin', binName),
+      path.resolve(nodeDir, 'resources', 'bin', binName),
       'D:\\whisper.cpp\\build\\bin\\Release\\whisper-cli.exe',
     ];
 

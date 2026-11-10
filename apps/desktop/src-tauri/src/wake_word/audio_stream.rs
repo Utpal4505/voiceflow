@@ -199,6 +199,8 @@ where
     T: ToF32Sample + cpal::Sample + cpal::SizedSample + 'static,
 {
     let mut fractional_pos: f64 = 0.0;
+    let safe_channels = channels.max(1);
+    let mut callback_counter: u64 = 0;
 
     let stream = device
         .build_input_stream(
@@ -209,13 +211,13 @@ where
                 }
 
                 // 1. Convert multi-channel interleaved to mono f32
-                let mut mono_samples = Vec::with_capacity(data.len() / channels);
-                for chunk in data.chunks_exact(channels) {
+                let mut mono_samples = Vec::with_capacity(data.len() / safe_channels);
+                for chunk in data.chunks_exact(safe_channels) {
                     let mut sum = 0.0f32;
                     for &sample in chunk {
                         sum += sample.to_f32_sample();
                     }
-                    mono_samples.push(sum / channels as f32);
+                    mono_samples.push(sum / safe_channels as f32);
                 }
 
                 // 2. Downsample to target (16,000 Hz) using linear interpolation
@@ -239,6 +241,14 @@ where
                 // 3. Push resampled 16kHz mono audio into circular ring buffer
                 if let Ok(mut lock) = buffer.lock() {
                     lock.push_samples(&resampled);
+                }
+
+                callback_counter += 1;
+                if callback_counter % 120 == 1 {
+                    println!(
+                        "[WakeWord Audio Callback] Mic stream active: callback #{} (batch size: {} samples)",
+                        callback_counter, resampled.len()
+                    );
                 }
             },
             |err| {

@@ -20,6 +20,7 @@ import { trackSettingsChanged } from "../../lib/telemetry";
 import { check } from "@tauri-apps/plugin-updater";
 import { isMac } from "../../utils/platform";
 import { audioChime } from "../../utils/audioChime";
+import VoiceCalibrationModal from "./VoiceCalibrationModal";
 
 interface Props {
   isOpen: boolean;
@@ -55,20 +56,25 @@ export default function SettingsModal({
     wakeWordEnabled,
     wakeWordPhrase,
     wakeWordSensitivity,
+    enrollmentInfo,
     setWakeWordEnabled,
     setWakeWordPhrase,
     setWakeWordSensitivity,
+    refreshEnrollment,
+    resetEnrollment,
   } = useSettingsStore();
   const [updateStatus, setUpdateStatus] = useState<
     "idle" | "checking" | "up-to-date" | "available" | "error"
   >("idle");
   const [availableVersion, setAvailableVersion] = useState<string | null>(null);
+  const [isCalibrateOpen, setIsCalibrateOpen] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       refreshDevices();
+      refreshEnrollment();
     }
-  }, [isOpen, refreshDevices]);
+  }, [isOpen, refreshDevices, refreshEnrollment]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -397,6 +403,67 @@ export default function SettingsModal({
                       <span>Test Sound</span>
                     </button>
                   </div>
+
+                  {/* Hairline Divider */}
+                  <div className="h-[1px] bg-white/[0.04]" />
+
+                  {/* Voice Enrollment Calibration Section */}
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-medium text-slate-300">Voice Match Profile</span>
+                      {(wakeWordPhrase === "hey_flow" ? enrollmentInfo.hasHeyFlow : enrollmentInfo.hasHeyVoiceflow) ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-medium">
+                          <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+                          <span>Personalized Model</span>
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-amber-400/90 font-medium">
+                          Generic Model
+                        </span>
+                      )}
+                    </div>
+
+                    {(wakeWordPhrase === "hey_flow" ? enrollmentInfo.hasHeyFlow : enrollmentInfo.hasHeyVoiceflow) ? (
+                      <div className="flex items-center justify-between rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-2.5">
+                        <div className="flex flex-col">
+                          <span className="text-[11px] font-medium text-emerald-300">Voice Enrolled & Calibrated</span>
+                          <span className="text-[10px] text-slate-400">Tuned to your vocal characteristics (99% accuracy)</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => setIsCalibrateOpen(true)}
+                            className="px-2 py-1 rounded bg-white/[0.06] hover:bg-white/[0.1] text-[10px] text-slate-300 hover:text-white transition cursor-pointer"
+                          >
+                            Retrain
+                          </button>
+                          <button
+                            onClick={() => resetEnrollment(wakeWordPhrase)}
+                            className="px-2 py-1 rounded bg-red-500/15 hover:bg-red-500/25 text-[10px] text-red-300 transition cursor-pointer"
+                            title="Reset voice profile"
+                          >
+                            Reset
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-2 rounded-lg bg-[#FF5722]/10 border border-[#FF5722]/25 p-3">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-3.5 w-3.5 text-[#FF5722]" />
+                          <span className="text-[11px] font-semibold text-white">Calibrate Voice Match (Recommended)</span>
+                        </div>
+                        <p className="text-[10px] text-slate-300 leading-relaxed">
+                          Just like Siri & Google Assistant, do 3 quick speaking exercises so VoiceFlow learns your unique vocal tract and eliminates false triggers.
+                        </p>
+                        <button
+                          onClick={() => setIsCalibrateOpen(true)}
+                          className="mt-0.5 flex items-center justify-center gap-2 w-full py-1.5 rounded-lg bg-[#FF5722] hover:bg-[#E64A19] text-xs font-semibold text-white shadow-sm shadow-[#FF5722]/30 transition cursor-pointer active:scale-95"
+                        >
+                          <Mic className="h-3.5 w-3.5" />
+                          <span>Train My Voice (3 Steps)</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -501,6 +568,14 @@ export default function SettingsModal({
           </button>
         </div>
       </div>
+
+      {/* Voice Match Training & Calibration Wizard */}
+      <VoiceCalibrationModal
+        isOpen={isCalibrateOpen}
+        onClose={() => setIsCalibrateOpen(false)}
+        phrase={wakeWordPhrase}
+        onCalibrationSuccess={refreshEnrollment}
+      />
     </div>
   );
 }

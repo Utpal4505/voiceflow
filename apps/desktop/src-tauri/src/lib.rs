@@ -311,6 +311,48 @@ fn set_wake_word_config(app: AppHandle, config: wake_word::WakeWordConfig) -> Re
 }
 
 #[tauri::command]
+fn start_wake_word_calibration(app: AppHandle, phrase: String) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    if let Ok(mut service) = state.wake_word_service.lock() {
+        service.start_calibration(&app, phrase);
+        Ok(())
+    } else {
+        Err("Failed to acquire lock on wake word service".to_string())
+    }
+}
+
+#[tauri::command]
+fn cancel_wake_word_calibration(app: AppHandle) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    if let Ok(mut service) = state.wake_word_service.lock() {
+        service.cancel_calibration();
+        Ok(())
+    } else {
+        Err("Failed to acquire lock on wake word service".to_string())
+    }
+}
+
+#[tauri::command]
+fn get_wake_word_enrollment(app: AppHandle) -> Result<serde_json::Value, String> {
+    let state = app.state::<AppState>();
+    if let Ok(service) = state.wake_word_service.lock() {
+        Ok(service.get_enrolled_status())
+    } else {
+        Err("Failed to acquire lock on wake word service".to_string())
+    }
+}
+
+#[tauri::command]
+fn reset_wake_word_enrollment(app: AppHandle, phrase: String) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    if let Ok(mut service) = state.wake_word_service.lock() {
+        service.reset_enrollment(&phrase)
+    } else {
+        Err("Failed to acquire lock on wake word service".to_string())
+    }
+}
+
+#[tauri::command]
 fn insert_text(app: AppHandle, text: String) -> Result<(), String> {
     println!("[Rust Insert] insert_text command called. Text length: {}", text.len());
     #[cfg(target_os = "windows")]
@@ -484,7 +526,11 @@ pub fn run() {
             get_autostart_status,
             set_autostart_status,
             get_wake_word_config,
-            set_wake_word_config
+            set_wake_word_config,
+            start_wake_word_calibration,
+            cancel_wake_word_calibration,
+            get_wake_word_enrollment,
+            reset_wake_word_enrollment
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")

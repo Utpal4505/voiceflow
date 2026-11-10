@@ -12,6 +12,13 @@ interface WakeWordConfig {
   sensitivity: number;
 }
 
+interface EnrollmentInfo {
+  hasHeyVoiceflow: boolean;
+  hasHeyFlow: boolean;
+  heyVoiceflowUpdatedAt: number;
+  heyFlowUpdatedAt: number;
+}
+
 interface SettingsState {
   selectedDeviceId: string;
   availableDevices: AudioDevice[];
@@ -19,6 +26,7 @@ interface SettingsState {
   wakeWordEnabled: boolean;
   wakeWordPhrase: WakeWordPhrase;
   wakeWordSensitivity: number;
+  enrollmentInfo: EnrollmentInfo;
 
   setSelectedDeviceId: (id: string) => void;
   setTelemetryEnabled: (enabled: boolean) => void;
@@ -26,6 +34,8 @@ interface SettingsState {
   setWakeWordPhrase: (phrase: WakeWordPhrase) => Promise<void>;
   setWakeWordSensitivity: (sensitivity: number) => Promise<void>;
   refreshDevices: () => Promise<void>;
+  refreshEnrollment: () => Promise<void>;
+  resetEnrollment: (phrase: string) => Promise<void>;
   initDeviceListener: () => () => void;
 }
 
@@ -66,8 +76,9 @@ function startGlobalDeviceMonitoring() {
   if (isMonitoringInitialized || typeof window === "undefined") return;
   isMonitoringInitialized = true;
 
-  // 1. Initial query of audio hardware devices
+  // 1. Initial query of audio hardware devices & enrollment status
   useSettingsStore.getState().refreshDevices();
+  useSettingsStore.getState().refreshEnrollment();
 
   // 2. Sync initial wake word configuration into Rust
   const initialWw = loadInitialWakeWordState();
@@ -102,6 +113,11 @@ function startGlobalDeviceMonitoring() {
         });
       }
     }).catch(() => {});
+
+    listen("wake-word:calibration-complete", () => {
+      console.log("[SettingsStore] Calibration complete event received, refreshing enrollment info");
+      useSettingsStore.getState().refreshEnrollment();
+    }).catch(() => {});
   } catch {
     // Non-Tauri browser preview
   }
@@ -123,6 +139,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   wakeWordEnabled: initialWw.enabled,
   wakeWordPhrase: initialWw.phrase,
   wakeWordSensitivity: initialWw.sensitivity,
+  enrollmentInfo: {
+    hasHeyVoiceflow: false,
+    hasHeyFlow: false,
+    heyVoiceflowUpdatedAt: 0,
+    heyFlowUpdatedAt: 0,
+  },
 
   setSelectedDeviceId: (id: string) => {
     localStorage.setItem(STORAGE_KEY_MIC, id);
@@ -158,6 +180,26 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ wakeWordSensitivity: sensitivity });
     const { wakeWordEnabled, wakeWordPhrase } = get();
     await syncWakeWordToRust(wakeWordEnabled, wakeWordPhrase, sensitivity);
+  },
+
+  refreshEnrollment: async () => {
+    try {
+      const info = await invoke<EnrollmentInfo>("get_wake_word_enrollment");
+      console.log("[SettingsStore] Loaded voice enrollment info:", info);
+      set({ enrollmentInfo: info });
+    } catch (err) {
+      console.warn("[SettingsStore] Failed to fetch enrollment status:", err);
+    }
+  },
+
+  resetEnrollment: async (phrase: string) => {
+    try {
+      await invoke("reset_wake_word_enrollment", { phrase });
+      await get().refreshEnrollment();
+      console.log("[SettingsStore] Reset voice profile for:", phrase);
+    } catch (err) {
+      console.error("[SettingsStore] Failed to reset voice profile:", err);
+    }
   },
 
   refreshDevices: async () => {

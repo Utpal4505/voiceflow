@@ -95,9 +95,9 @@ jobs:
 
       - name: Publish macOS DMG to Public Releases Repo
         uses: softprops/action-gh-release@v2
-        if: ${{ secrets.PUBLIC_RELEASE_TOKEN != '' }}
+        continue-on-error: true
         with:
-          token: ${{ secrets.PUBLIC_RELEASE_TOKEN }}
+          token: ${{ secrets.PUBLIC_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
           repository: Utpal4505/voiceflow-releases
           tag_name: ${{ steps.pkg_version.outputs.tag_name }}
           name: VoiceFlow v${{ steps.pkg_version.outputs.version }}
@@ -165,9 +165,9 @@ jobs:
 
       - name: Publish Windows Assets to Public Releases Repo
         uses: softprops/action-gh-release@v2
-        if: ${{ secrets.PUBLIC_RELEASE_TOKEN != '' }}
+        continue-on-error: true
         with:
-          token: ${{ secrets.PUBLIC_RELEASE_TOKEN }}
+          token: ${{ secrets.PUBLIC_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
           repository: Utpal4505/voiceflow-releases
           tag_name: ${{ steps.pkg_version.outputs.tag_name }}
           name: VoiceFlow v${{ steps.pkg_version.outputs.version }}

@@ -5,21 +5,27 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Download, X, ArrowDown, ShieldCheck } from "lucide-react";
 import { VoiceFlowLogo } from "./VoiceFlowLogo";
 
-export function triggerDownloadToast() {
+export type DownloadPlatform = "windows" | "mac";
+
+export function triggerDownloadToast(platform: DownloadPlatform = "windows") {
   if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("voiceflow:download"));
+    window.dispatchEvent(new CustomEvent("voiceflow:download", { detail: { platform } }));
   }
 }
 
 export default function DownloadToast() {
   const [visible, setVisible] = useState(false);
+  const [platform, setPlatform] = useState<DownloadPlatform>("windows");
   const [downloadProgress, setDownloadProgress] = useState(0);
 
   useEffect(() => {
     let progressInterval: NodeJS.Timeout | undefined;
     let autoDismissTimer: NodeJS.Timeout | undefined;
 
-    const handleDownloadEvent = () => {
+    const handleDownloadEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{ platform?: DownloadPlatform }>;
+      const targetPlatform = customEvent.detail?.platform || "windows";
+      setPlatform(targetPlatform);
       setVisible(true);
       setDownloadProgress(0);
 
@@ -59,6 +65,8 @@ export default function DownloadToast() {
     }
   };
 
+  const isMac = platform === "mac";
+
   return (
     <AnimatePresence>
       {visible && (
@@ -82,15 +90,15 @@ export default function DownloadToast() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-white tracking-tight">
-                      VoiceFlow-Setup.exe
+                      {isMac ? "VoiceFlow.dmg" : "VoiceFlow-Setup.exe"}
                     </span>
                     <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-slate-300">
-                      ~25 MB
+                      {isMac ? "~35 MB" : "~25 MB"}
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-400 mt-0.5">
                     {downloadProgress < 100
-                      ? `Downloading... ${downloadProgress}%`
+                      ? `Downloading for ${isMac ? "macOS" : "Windows"}... ${downloadProgress}%`
                       : "Download complete • Ready to run"}
                   </p>
                 </div>
@@ -116,24 +124,34 @@ export default function DownloadToast() {
               />
             </div>
 
-            {/* SmartScreen Reassurance Tip */}
+            {/* Platform Installation Reassurance Tip */}
             <div className="mt-3 pt-3 border-t border-white/10 flex items-start gap-2.5">
               <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
               <div className="space-y-1">
-                <p className="text-xs text-slate-300 leading-snug">
-                  <span className="font-semibold text-white">First time launching?</span> If
-                  Windows Defender SmartScreen appears, click{" "}
-                  <span className="underline font-semibold text-blue-300">More info</span> →{" "}
-                  <span className="font-semibold text-white">Run anyway</span>.
-                </p>
-                <button
-                  type="button"
-                  onClick={handleScrollToGuide}
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-400 hover:text-blue-300 transition-colors cursor-pointer"
-                >
-                  <span>View 2-Click Launch Guide</span>
-                  <ArrowDown className="h-3 w-3" />
-                </button>
+                {isMac ? (
+                  <p className="text-xs text-slate-300 leading-snug">
+                    <span className="font-semibold text-white">macOS Installation:</span> Open the{" "}
+                    <code className="text-white font-mono text-[11px] bg-white/10 px-1 py-0.5 rounded">.dmg</code> and drag
+                    VoiceFlow into your Applications folder. Universal binary for Apple Silicon (M1/M2/M3/M4) &amp; Intel.
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-xs text-slate-300 leading-snug">
+                      <span className="font-semibold text-white">First time launching?</span> If
+                      Windows Defender SmartScreen appears, click{" "}
+                      <span className="underline font-semibold text-blue-300">More info</span> →{" "}
+                      <span className="font-semibold text-white">Run anyway</span>.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleScrollToGuide}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-400 hover:text-blue-300 transition-colors cursor-pointer"
+                    >
+                      <span>View 2-Click Launch Guide</span>
+                      <ArrowDown className="h-3 w-3" />
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>

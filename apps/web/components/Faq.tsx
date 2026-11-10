@@ -10,16 +10,16 @@ const FAQS = [
     a: "No! Once VoiceFlow initializes the lightweight base AI model (~140 MB) on your initial launch, it runs 100% offline. You can dictate seamlessly on airplanes, remote locations, or in high-security facilities with zero Wi-Fi.",
   },
   {
-    q: "Which Windows applications can I dictate into?",
-    a: "Every single one! Because VoiceFlow simulates native Windows keyboard keystrokes via low-level input hooks, you can dictate directly into Notepad, Google Chrome, Microsoft Word, Slack, VS Code, Discord, Notion, and PowerShell terminal consoles.",
+    q: "Which applications can I dictate into?",
+    a: "Every single one! Because VoiceFlow simulates native keyboard keystrokes via low-level OS input hooks, you can dictate directly into Slack, VS Code, Notion, Discord, Google Docs, Chrome, Safari, Notes, Xcode, and terminal consoles on both Windows and macOS.",
   },
   {
     q: "Is my microphone audio or voice data ever stored or recorded?",
-    a: "Never. Your microphone audio is processed strictly in volatile CPU RAM by the local vector engine and is wiped immediately after transcription. No audio recordings or transcript logs are ever saved to external servers or your hard drive.",
+    a: "Never. Your microphone audio is processed strictly in volatile RAM by the local Whisper engine and is wiped immediately after transcription. No audio recordings or transcript logs are ever saved to external servers or your hard drive.",
   },
   {
     q: "What are the hardware and system requirements?",
-    a: "VoiceFlow runs on 64-bit Windows 10 or Windows 11 with at least 4 GB of RAM. Any modern Intel or AMD CPU with AVX/AVX2 support (manufactured after 2013) runs VoiceFlow in real-time without requiring an expensive dedicated GPU.",
+    a: "VoiceFlow supports 64-bit Windows 10 & 11, as well as macOS 12+ (Monterey, Ventura, Sonoma, Sequoia) on both Apple Silicon (M1/M2/M3/M4) and Intel Macs. It runs in real-time on standard CPUs with 4 GB+ RAM — zero expensive GPU required.",
   },
   {
     q: "How does VoiceFlow avoid stealing window focus?",

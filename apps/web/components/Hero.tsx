@@ -3,27 +3,10 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { triggerDownloadToast } from "./DownloadToast";
-
-function WindowsIcon({ className = "h-4 w-4" }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 256 256"
-      className={className}
-      aria-hidden="true"
-    >
-      <path d="M0 0h256v256H0z" fill="none" />
-      <path
-        fill="#0078d4"
-        d="M0 0h121.329v121.329H0zm134.671 0H256v121.329H134.671zM0 134.671h121.329V256H0zm134.671 0H256V256H134.671z"
-      />
-    </svg>
-  );
-}
+import { WindowsIcon, AppleIcon, DOWNLOAD_URLS, useDetectedOS } from "./PlatformIcons";
 
 export default function Hero() {
-  const downloadExeUrl =
-    "https://github.com/Utpal4505/voiceflow-releases/releases/latest/download/VoiceFlow-Setup.exe";
+  const detectedOS = useDetectedOS();
 
   return (
     <section className="relative pt-16 pb-12 sm:pt-24 sm:pb-16 lg:pt-32 lg:pb-20 text-center text-white">
@@ -72,31 +55,64 @@ export default function Hero() {
           <kbd className="inline-flex items-center justify-center rounded-md border border-white/20 bg-white/10 px-2.5 py-0.5 font-mono text-xs sm:text-sm font-semibold text-white shadow-xs align-baseline">
             Space
           </kbd>{" "}
-          and talk. VoiceFlow instantly types right at your cursor in any Windows app —
+          and talk. VoiceFlow instantly types right at your cursor in any Windows or Mac app —
           100% offline, private, and lightning fast.
         </motion.p>
 
-        {/* Tactile White CTA Button (High-Contrast Hero Action) */}
+        {/* Tactile Auto-Detecting Single Download CTA Button */}
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.25 }}
-          className="mt-8 sm:mt-10 flex flex-col items-center justify-center gap-3"
+          className="mt-8 sm:mt-10 flex flex-col items-center justify-center gap-3.5"
         >
+          {/* Main Primary Auto-Detected Download Button */}
           <motion.a
-            href={downloadExeUrl}
+            href={detectedOS === "mac" ? DOWNLOAD_URLS.mac : DOWNLOAD_URLS.windows}
             download
-            onClick={triggerDownloadToast}
-            whileHover={{ scale: 1.02 }}
+            onClick={() => triggerDownloadToast(detectedOS)}
+            whileHover={{ scale: 1.02, y: -1 }}
             whileTap={{ scale: 0.98 }}
-            className="inline-flex items-center justify-center gap-3 rounded-2xl bg-white hover:bg-slate-100 px-8 py-4 text-sm sm:text-base font-bold text-[#111827] shadow-xl shadow-black/40 ring-1 ring-white/20 transition-all cursor-pointer"
+            className="group flex items-center justify-center gap-3 rounded-2xl bg-white hover:bg-slate-100 px-8 sm:px-10 py-4 text-base sm:text-lg font-bold text-[#111827] shadow-[0_8px_30px_rgba(255,255,255,0.18)] transition-all cursor-pointer ring-1 ring-white/20"
           >
-            <WindowsIcon className="h-4 w-4 shrink-0" />
-            <span>Download for Windows</span>
+            {detectedOS === "mac" ? (
+              <AppleIcon className="h-5 w-5 shrink-0 text-[#111827]" />
+            ) : (
+              <WindowsIcon className="h-5 w-5 shrink-0" />
+            )}
+            <span>
+              {detectedOS === "mac" ? "Download for macOS" : "Download for Windows"}
+            </span>
+            <span className="rounded-md bg-slate-900/10 px-2 py-0.5 text-xs font-semibold text-slate-700">
+              {detectedOS === "mac" ? ".dmg" : ".exe"}
+            </span>
           </motion.a>
 
+          {/* Alternate Platform Switcher Link */}
+          <div className="flex items-center gap-1.5 text-xs text-slate-400">
+            <span>{detectedOS === "mac" ? "Looking for Windows?" : "Looking for macOS?"}</span>
+            <a
+              href={detectedOS === "mac" ? DOWNLOAD_URLS.windows : DOWNLOAD_URLS.mac}
+              download
+              onClick={() => triggerDownloadToast(detectedOS === "mac" ? "windows" : "mac")}
+              className="inline-flex items-center gap-1 text-slate-300 hover:text-white underline underline-offset-4 decoration-white/30 hover:decoration-white transition-colors cursor-pointer font-medium"
+            >
+              {detectedOS === "mac" ? (
+                <>
+                  <WindowsIcon className="h-3 w-3 inline" />
+                  <span>Download for Windows (.exe)</span>
+                </>
+              ) : (
+                <>
+                  <AppleIcon className="h-3 w-3 inline" />
+                  <span>Download for macOS (.dmg)</span>
+                </>
+              )}
+            </a>
+          </div>
+
           <p className="text-xs sm:text-sm text-slate-500 font-medium">
-            For Windows 11 &amp; 10
+            Windows 11 &amp; 10 • macOS 12+ (Apple Silicon &amp; Intel) • 100% Offline
           </p>
         </motion.div>
       </div>

@@ -5,27 +5,10 @@ import { motion } from "framer-motion";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 import { triggerDownloadToast } from "./DownloadToast";
 import { VoiceFlowLogo } from "./VoiceFlowLogo";
-
-function WindowsIcon({ className = "h-4 w-4" }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 256 256"
-      className={className}
-      aria-hidden="true"
-    >
-      <path d="M0 0h256v256H0z" fill="none" />
-      <path
-        fill="#0078d4"
-        d="M0 0h121.329v121.329H0zm134.671 0H256v121.329H134.671zM0 134.671h121.329V256H0zm134.671 0H256V256H134.671z"
-      />
-    </svg>
-  );
-}
+import { WindowsIcon, AppleIcon, DOWNLOAD_URLS, useDetectedOS } from "./PlatformIcons";
 
 export default function Footer() {
-  const downloadExeUrl =
-    "https://github.com/Utpal4505/voiceflow-releases/releases/latest/download/VoiceFlow-Setup.exe";
+  const detectedOS = useDetectedOS();
 
   return (
     <footer className="bg-[#212121]">
@@ -45,7 +28,7 @@ export default function Footer() {
           <div className="relative z-10 max-w-2xl mx-auto space-y-4">
             <div className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3.5 py-1 text-xs font-semibold text-slate-300">
               <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
-              <span>Verified Native Windows Software</span>
+              <span>Verified Native Desktop Software (Windows &amp; macOS)</span>
             </div>
 
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-white leading-[1.1]">
@@ -53,27 +36,57 @@ export default function Footer() {
             </h2>
 
             <p className="text-sm sm:text-base text-slate-300 max-w-lg mx-auto leading-relaxed">
-              Download VoiceFlow for Windows today. Instant on-device speech recognition with complete
+              Download VoiceFlow for Windows or macOS today. Instant on-device speech recognition with complete
               offline privacy.
             </p>
 
-            <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-4">
+            <div className="pt-4 flex flex-col items-center justify-center gap-3">
               <motion.a
-                href={downloadExeUrl}
+                href={detectedOS === "mac" ? DOWNLOAD_URLS.mac : DOWNLOAD_URLS.windows}
                 download
-                onClick={triggerDownloadToast}
+                onClick={() => triggerDownloadToast(detectedOS)}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className="flex items-center gap-2 rounded-2xl bg-white hover:bg-slate-100 px-8 py-4 text-sm font-bold text-[#111827] shadow-xl transition-all cursor-pointer"
+                className="flex items-center justify-center gap-2.5 rounded-2xl bg-white hover:bg-slate-100 px-8 py-4 text-sm sm:text-base font-bold text-[#111827] shadow-xl transition-all cursor-pointer ring-1 ring-white/20"
               >
-                <WindowsIcon className="h-4 w-4 shrink-0" />
-                <span>Download VoiceFlow for Windows (.exe)</span>
-                <ArrowRight className="h-4 w-4 ml-1 text-slate-500" />
+                {detectedOS === "mac" ? (
+                  <AppleIcon className="h-4 w-4 shrink-0 text-[#111827]" />
+                ) : (
+                  <WindowsIcon className="h-4 w-4 shrink-0" />
+                )}
+                <span>
+                  {detectedOS === "mac"
+                    ? "Download VoiceFlow for macOS (.dmg)"
+                    : "Download VoiceFlow for Windows (.exe)"}
+                </span>
+                <ArrowRight className="h-4 w-4 ml-1 opacity-70" />
               </motion.a>
+
+              <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                <span>{detectedOS === "mac" ? "Looking for Windows?" : "Looking for macOS?"}</span>
+                <a
+                  href={detectedOS === "mac" ? DOWNLOAD_URLS.windows : DOWNLOAD_URLS.mac}
+                  download
+                  onClick={() => triggerDownloadToast(detectedOS === "mac" ? "windows" : "mac")}
+                  className="inline-flex items-center gap-1 text-slate-300 hover:text-white underline underline-offset-4 decoration-white/30 hover:decoration-white transition-colors cursor-pointer font-medium"
+                >
+                  {detectedOS === "mac" ? (
+                    <>
+                      <WindowsIcon className="h-3 w-3 inline" />
+                      <span>Download for Windows (.exe)</span>
+                    </>
+                  ) : (
+                    <>
+                      <AppleIcon className="h-3 w-3 inline" />
+                      <span>Download for macOS (.dmg)</span>
+                    </>
+                  )}
+                </a>
+              </div>
             </div>
 
             <p className="text-[11px] text-slate-400 pt-2 font-mono">
-              Windows 11 &amp; 10 • Single installer (~25 MB) • No account required
+              Windows 11 &amp; 10 • macOS 12+ (Apple Silicon &amp; Intel) • Single installer (~25–35 MB) • No account required
             </p>
           </div>
         </motion.div>
@@ -86,7 +99,7 @@ export default function Footer() {
             <VoiceFlowLogo className="h-8 w-8 filter drop-shadow-sm" />
             <div>
               <span className="text-sm font-bold text-white">VoiceFlow</span>
-              <p className="text-[11px] text-slate-400">100% Offline AI Voice Typing for Windows</p>
+              <p className="text-[11px] text-slate-400">100% Offline AI Voice Typing for Windows &amp; Mac</p>
             </div>
           </div>
 
@@ -117,7 +130,7 @@ export default function Footer() {
           </div>
 
           <div className="text-[11px] text-slate-500 text-center sm:text-right font-mono">
-            Native Windows Software • Built with Rust &amp; Whisper C++
+            Native Desktop Software • Built with Rust &amp; Whisper C++
           </div>
         </div>
       </div>

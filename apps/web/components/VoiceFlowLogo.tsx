@@ -1,4 +1,5 @@
 import React from "react";
+import Image from "next/image";
 
 interface VoiceFlowLogoProps {
   className?: string;
@@ -9,22 +10,20 @@ interface VoiceFlowLogoProps {
 
 export function VoiceFlowLogo({
   className = "w-8 h-8",
-  size,
+  size = 32,
   style,
   alt = "VoiceFlow Logo",
 }: VoiceFlowLogoProps) {
-  const customStyle: React.CSSProperties = {
-    ...(size ? { width: size, height: size } : {}),
-    ...style,
-  };
-
   return (
-    <img
+    <Image
       src="/logo.svg"
       alt={alt}
+      width={size}
+      height={size}
       className={`object-contain select-none shrink-0 ${className}`}
-      style={customStyle}
+      style={style}
       draggable={false}
+      priority
     />
   );
 }

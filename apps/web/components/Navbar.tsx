@@ -2,34 +2,16 @@
 
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Download, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { triggerDownloadToast } from "./DownloadToast";
 import { VoiceFlowLogo } from "./VoiceFlowLogo";
-
-function WindowsIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 256 256"
-      className={className}
-      aria-hidden="true"
-    >
-      <path d="M0 0h256v256H0z" fill="none" />
-      <path
-        fill="#0078d4"
-        d="M0 0h121.329v121.329H0zm134.671 0H256v121.329H134.671zM0 134.671h121.329V256H0zm134.671 0H256V256H134.671z"
-      />
-    </svg>
-  );
-}
+import { WindowsIcon, AppleIcon, DOWNLOAD_URLS, useDetectedOS } from "./PlatformIcons";
 
 export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const [scrolled, setScrolled] = useState(false);
-
-  const downloadUrl =
-    "https://github.com/Utpal4505/voiceflow-releases/releases/latest/download/VoiceFlow-Setup.exe";
+  const detectedOS = useDetectedOS();
 
   const navLinks = [
     { label: "Features", href: "#features" },
@@ -62,7 +44,7 @@ export default function Navbar() {
               : "shadow-xl"
           }`}
         >
-          {/* Left: Brand Identity with Version Pill */}
+          {/* Left: Brand Identity */}
           <a href="#" className="flex items-center gap-2.5 group">
             <div className="transition-transform group-hover:scale-105 filter drop-shadow-md">
               <VoiceFlowLogo className="h-8 w-8" />
@@ -107,31 +89,41 @@ export default function Navbar() {
             })}
           </nav>
 
-          {/* Right: Tactile Download CTA Button */}
+          {/* Right: Tactile Auto-Detecting Single Download CTA Button */}
           <div className="hidden sm:flex items-center">
             <motion.a
-              href={downloadUrl}
+              href={detectedOS === "mac" ? DOWNLOAD_URLS.mac : DOWNLOAD_URLS.windows}
               download
-              onClick={triggerDownloadToast}
+              onClick={() => triggerDownloadToast(detectedOS)}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               className="flex items-center gap-2 rounded-xl bg-white hover:bg-slate-100 px-3.5 py-1.5 text-xs font-semibold text-[#111827] shadow-[0_2px_12px_rgba(255,255,255,0.12)] transition-all cursor-pointer font-sans"
             >
-              <WindowsIcon className="h-3.5 w-3.5 shrink-0" />
-              <span>Download for Windows</span>
+              {detectedOS === "mac" ? (
+                <AppleIcon className="h-3.5 w-3.5 shrink-0 text-[#111827]" />
+              ) : (
+                <WindowsIcon className="h-3.5 w-3.5 shrink-0" />
+              )}
+              <span>
+                {detectedOS === "mac" ? "Download for Mac" : "Download for Windows"}
+              </span>
             </motion.a>
           </div>
 
-          {/* Mobile Hamburger Toggle Button */}
+          {/* Mobile Hamburger & Quick Get Button */}
           <div className="flex items-center gap-2 sm:hidden">
             <a
-              href={downloadUrl}
+              href={detectedOS === "mac" ? DOWNLOAD_URLS.mac : DOWNLOAD_URLS.windows}
               download
-              onClick={triggerDownloadToast}
+              onClick={() => triggerDownloadToast(detectedOS)}
               className="flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1 text-xs font-bold text-[#111827]"
             >
-              <Download className="h-3 w-3" />
-              <span>Get</span>
+              {detectedOS === "mac" ? (
+                <AppleIcon className="h-3 w-3 shrink-0 text-[#111827]" />
+              ) : (
+                <WindowsIcon className="h-3 w-3 shrink-0" />
+              )}
+              <span>Download</span>
             </a>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -163,16 +155,50 @@ export default function Navbar() {
                   {link.label}
                 </a>
               ))}
-              <div className="pt-2 border-t border-white/10">
+              <div className="pt-2 border-t border-white/10 space-y-2">
                 <a
-                  href={downloadUrl}
+                  href={detectedOS === "mac" ? DOWNLOAD_URLS.mac : DOWNLOAD_URLS.windows}
                   download
-                  onClick={triggerDownloadToast}
+                  onClick={() => {
+                    triggerDownloadToast(detectedOS);
+                    setMobileMenuOpen(false);
+                  }}
                   className="flex items-center justify-center gap-2 rounded-xl bg-white py-2.5 text-xs font-bold text-[#111827] shadow-sm font-sans"
                 >
-                  <WindowsIcon className="h-3.5 w-3.5 shrink-0" />
-                  <span>Download for Windows (~25 MB)</span>
+                  {detectedOS === "mac" ? (
+                    <AppleIcon className="h-3.5 w-3.5 shrink-0 text-[#111827]" />
+                  ) : (
+                    <WindowsIcon className="h-3.5 w-3.5 shrink-0" />
+                  )}
+                  <span>
+                    {detectedOS === "mac"
+                      ? "Download for macOS (.dmg)"
+                      : "Download for Windows (.exe)"}
+                  </span>
                 </a>
+                <div className="text-center">
+                  <a
+                    href={detectedOS === "mac" ? DOWNLOAD_URLS.windows : DOWNLOAD_URLS.mac}
+                    download
+                    onClick={() => {
+                      triggerDownloadToast(detectedOS === "mac" ? "windows" : "mac");
+                      setMobileMenuOpen(false);
+                    }}
+                    className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-white underline underline-offset-2 decoration-white/20"
+                  >
+                    {detectedOS === "mac" ? (
+                      <>
+                        <WindowsIcon className="h-3 w-3 inline" />
+                        <span>Looking for Windows (.exe)?</span>
+                      </>
+                    ) : (
+                      <>
+                        <AppleIcon className="h-3 w-3 inline" />
+                        <span>Looking for macOS (.dmg)?</span>
+                      </>
+                    )}
+                  </a>
+                </div>
               </div>
             </motion.div>
           )}

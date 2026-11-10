@@ -26,6 +26,7 @@ tauri-plugin-global-shortcut = "2.4.1"
 tauri-plugin-clipboard-manager = "2.5.0"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+cpal = "0.15"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61.2", features = [

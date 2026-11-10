@@ -12,11 +12,14 @@ import {
   Sparkles,
   AlertCircle,
   Mic,
+  Radio,
+  Volume2,
 } from "lucide-react";
-import { useSettingsStore } from "../../stores/settingsStore";
+import { useSettingsStore, WakeWordPhrase } from "../../stores/settingsStore";
 import { trackSettingsChanged } from "../../lib/telemetry";
 import { check } from "@tauri-apps/plugin-updater";
 import { isMac } from "../../utils/platform";
+import { audioChime } from "../../utils/audioChime";
 
 interface Props {
   isOpen: boolean;
@@ -49,6 +52,12 @@ export default function SettingsModal({
     setSelectedDeviceId,
     availableDevices,
     refreshDevices,
+    wakeWordEnabled,
+    wakeWordPhrase,
+    wakeWordSensitivity,
+    setWakeWordEnabled,
+    setWakeWordPhrase,
+    setWakeWordSensitivity,
   } = useSettingsStore();
   const [updateStatus, setUpdateStatus] = useState<
     "idle" | "checking" | "up-to-date" | "available" | "error"
@@ -265,6 +274,131 @@ export default function SettingsModal({
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Section: Hands-Free Voice Activation (Beta) */}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
+                Hands-Free Wake Word (Beta)
+              </span>
+              {wakeWordEnabled && (
+                <span className="inline-flex items-center gap-1.5 text-[10px] text-emerald-400 font-medium">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Active Listener
+                </span>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-white/[0.07] bg-[#141414] overflow-hidden shadow-inner">
+              {/* Wake Word Enable Toggle */}
+              <div className="flex items-center justify-between p-3.5">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
+                      wakeWordEnabled ? "bg-[#FF5722]/20 text-[#FF5722]" : "bg-white/[0.04] text-slate-500"
+                    }`}
+                  >
+                    <Radio className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs font-medium text-slate-200">Voice Activation</span>
+                    <span className="text-[11px] text-slate-500">
+                      Awaken VoiceFlow hands-free without touching keyboard
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    const next = !wakeWordEnabled;
+                    setWakeWordEnabled(next);
+                    if (next) {
+                      audioChime.playWakeChime();
+                    }
+                  }}
+                  role="switch"
+                  aria-checked={wakeWordEnabled}
+                  className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 cursor-pointer ${
+                    wakeWordEnabled ? "bg-[#FF5722] shadow-[0_0_10px_rgba(255,87,34,0.45)]" : "bg-white/[0.12]"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform duration-200 ${
+                      wakeWordEnabled ? "translate-x-4.5" : "translate-x-1"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {wakeWordEnabled && (
+                <div className="flex flex-col gap-3.5 p-3.5 pt-1 border-t border-white/[0.04] bg-white/[0.01]">
+                  {/* Trigger Phrase Selector */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[11px] font-medium text-slate-300">Trigger Phrase</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { id: "hey_voiceflow" as WakeWordPhrase, label: "Hey VoiceFlow" },
+                        { id: "hey_flow" as WakeWordPhrase, label: "Hey Flow" },
+                        { id: "both" as WakeWordPhrase, label: "Both" },
+                      ].map((item) => (
+                        <button
+                          key={item.id}
+                          onClick={() => setWakeWordPhrase(item.id)}
+                          className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer border ${
+                            wakeWordPhrase === item.id
+                              ? "bg-[#FF5722]/15 border-[#FF5722]/40 text-[#FF5722] shadow-[0_0_10px_rgba(255,87,34,0.2)]"
+                              : "bg-white/[0.03] border-white/[0.06] text-slate-400 hover:text-white hover:bg-white/[0.06]"
+                          }`}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Sensitivity Slider */}
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-medium text-slate-300">Detection Sensitivity</label>
+                      <span className="text-[10px] font-mono text-slate-400">
+                        {wakeWordSensitivity <= 0.35
+                          ? "Strict (Quiet)"
+                          : wakeWordSensitivity >= 0.7
+                          ? "Sensitive (Distant)"
+                          : "Balanced"}
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.1"
+                      max="0.9"
+                      step="0.05"
+                      value={wakeWordSensitivity}
+                      onChange={(e) => setWakeWordSensitivity(parseFloat(e.target.value))}
+                      className="w-full h-1.5 bg-white/[0.1] rounded-lg appearance-none cursor-pointer accent-[#FF5722]"
+                    />
+                    <div className="flex justify-between text-[9px] text-slate-500 font-mono">
+                      <span>Low false triggers</span>
+                      <span>High pickup</span>
+                    </div>
+                  </div>
+
+                  {/* Chime Sound Test Button */}
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-[11px] text-slate-400">Earcon Audio Chime</span>
+                    <button
+                      onClick={() => audioChime.playWakeChime()}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white text-[11px] transition border border-white/[0.06] cursor-pointer"
+                      title="Play sample sound"
+                    >
+                      <Volume2 className="h-3 w-3 text-[#FF5722]" />
+                      <span>Test Sound</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

@@ -6,6 +6,7 @@ pub mod window;
 pub mod keyboard_hook;
 pub mod server_manager;
 pub mod tray;
+pub mod wake_word;
 
 use std::str::FromStr;
 use tauri::{AppHandle, Emitter, Manager};
@@ -16,6 +17,17 @@ use context::{get_window_context, AppContext};
 
 pub(crate) fn trigger_toggle_overlay(app: AppHandle) {
     toggle_overlay(app);
+}
+
+pub(crate) fn trigger_wake_word_overlay(app: AppHandle) {
+    if let Some(overlay) = app.get_webview_window("overlay") {
+        if !is_overlay_window_visible(&overlay) {
+            println!("[WakeWord] Triggering show_overlay for hands-free wake word");
+            show_overlay(app);
+        } else {
+            println!("[WakeWord] Overlay is already open and active; keeping dictation session alive");
+        }
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -277,6 +289,28 @@ fn set_autostart_status(app: AppHandle, enabled: bool) -> Result<bool, String> {
 }
 
 #[tauri::command]
+fn get_wake_word_config(app: AppHandle) -> wake_word::WakeWordConfig {
+    let state = app.state::<AppState>();
+    if let Ok(service) = state.wake_word_service.lock() {
+        service.get_config()
+    } else {
+        wake_word::WakeWordConfig::default()
+    }
+}
+
+#[tauri::command]
+fn set_wake_word_config(app: AppHandle, config: wake_word::WakeWordConfig) -> Result<wake_word::WakeWordConfig, String> {
+    let state = app.state::<AppState>();
+    if let Ok(mut service) = state.wake_word_service.lock() {
+        service.set_config(&app, config.clone());
+        let _ = app.emit("wake-word:config-changed", &config);
+        Ok(config)
+    } else {
+        Err("Failed to acquire lock on wake word service".to_string())
+    }
+}
+
+#[tauri::command]
 fn insert_text(app: AppHandle, text: String) -> Result<(), String> {
     println!("[Rust Insert] insert_text command called. Text length: {}", text.len());
     #[cfg(target_os = "windows")]
@@ -448,13 +482,18 @@ pub fn run() {
             get_active_context,
             insert_text,
             get_autostart_status,
-            set_autostart_status
+            set_autostart_status,
+            get_wake_word_config,
+            set_wake_word_config
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
         .run(|app_handle, event| {
             if let tauri::RunEvent::Exit = event {
                 let state = app_handle.state::<AppState>();
+                if let Ok(mut service) = state.wake_word_service.lock() {
+                    service.stop_listening();
+                }
                 if let Ok(mut guard) = state.server_process.lock() {
                     if let Some(mut child) = guard.take() {
                         server_manager::stop_server(&mut child);

@@ -9,6 +9,7 @@ import { useSettingsStore } from "../stores/settingsStore";
 import VoiceFlowLogo from "../components/common/VoiceFlowLogo";
 import { Mic, Check, AlertCircle, Loader2 } from "lucide-react";
 import { trackDictationCompleted, trackInsertionFailed } from "../lib/telemetry";
+import { audioChime } from "../utils/audioChime";
 
 const MAX_RECORDING_MS = 180_000;
 
@@ -215,9 +216,15 @@ export default function OverlayWindow() {
     let unlistenToggle: (() => void) | undefined;
     let unlistenSubmit: (() => void) | undefined;
     let unlistenHide: (() => void) | undefined;
+    let unlistenWakeWord: (() => void) | undefined;
 
     async function registerTauriEvents() {
       try {
+        unlistenWakeWord = await listen<string>("wake-word:triggered", (event) => {
+          console.log("[Overlay] Wake word triggered by Rust listener:", event.payload);
+          audioChime.playWakeChime();
+        });
+
         unlistenShow = await listen("overlay:show", () => {
           console.log("[Overlay] Event received: overlay:show");
           handleStartRecordingRef.current();
@@ -250,6 +257,7 @@ export default function OverlayWindow() {
     registerTauriEvents();
 
     return () => {
+      unlistenWakeWord?.();
       unlistenShow?.();
       unlistenSubmit?.();
       unlistenToggle?.();

@@ -2,20 +2,65 @@ import { create } from "zustand";
 import { AudioDevice, getAudioInputDevices, onAudioDeviceChange } from "../utils/audioDevices";
 import { isTelemetryEnabled, setTelemetryEnabled } from "../lib/telemetry";
 import { emit, listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
+
+export type WakeWordPhrase = "hey_voiceflow" | "hey_flow" | "both";
+
+interface WakeWordConfig {
+  enabled: boolean;
+  phrase: string;
+  sensitivity: number;
+}
 
 interface SettingsState {
   selectedDeviceId: string;
   availableDevices: AudioDevice[];
   telemetryEnabled: boolean;
+  wakeWordEnabled: boolean;
+  wakeWordPhrase: WakeWordPhrase;
+  wakeWordSensitivity: number;
+
   setSelectedDeviceId: (id: string) => void;
   setTelemetryEnabled: (enabled: boolean) => void;
+  setWakeWordEnabled: (enabled: boolean) => Promise<void>;
+  setWakeWordPhrase: (phrase: WakeWordPhrase) => Promise<void>;
+  setWakeWordSensitivity: (sensitivity: number) => Promise<void>;
   refreshDevices: () => Promise<void>;
   initDeviceListener: () => () => void;
 }
 
-const STORAGE_KEY = "voiceflow_selected_mic";
+const STORAGE_KEY_MIC = "voiceflow_selected_mic";
+const STORAGE_KEY_WW_ENABLED = "voiceflow_wakeword_enabled";
+const STORAGE_KEY_WW_PHRASE = "voiceflow_wakeword_phrase";
+const STORAGE_KEY_WW_SENSITIVITY = "voiceflow_wakeword_sensitivity";
 
 let isMonitoringInitialized = false;
+
+function loadInitialWakeWordState() {
+  if (typeof window === "undefined") {
+    return { enabled: false, phrase: "hey_voiceflow" as WakeWordPhrase, sensitivity: 0.5 };
+  }
+  const enabled = localStorage.getItem(STORAGE_KEY_WW_ENABLED) === "true";
+  const phrase = (localStorage.getItem(STORAGE_KEY_WW_PHRASE) as WakeWordPhrase) || "hey_voiceflow";
+  const rawSens = localStorage.getItem(STORAGE_KEY_WW_SENSITIVITY);
+  const sensitivity = rawSens ? parseFloat(rawSens) : 0.5;
+  return { enabled, phrase, sensitivity: isNaN(sensitivity) ? 0.5 : sensitivity };
+}
+
+async function syncWakeWordToRust(enabled: boolean, phrase: WakeWordPhrase, sensitivity: number) {
+  try {
+    await invoke("set_wake_word_config", {
+      config: {
+        enabled,
+        phrase,
+        sensitivity,
+      },
+    });
+    console.log("[SettingsStore] Synchronized wake-word config to Rust engine:", { enabled, phrase, sensitivity });
+  } catch (err) {
+    console.warn("[SettingsStore] Failed to sync wake-word config to Tauri:", err);
+  }
+}
 
 function startGlobalDeviceMonitoring() {
   if (isMonitoringInitialized || typeof window === "undefined") return;
@@ -24,13 +69,19 @@ function startGlobalDeviceMonitoring() {
   // 1. Initial query of audio hardware devices
   useSettingsStore.getState().refreshDevices();
 
-  // 2. Hardware change listener (Bluetooth connects/disconnects, USB mics)
+  // 2. Sync initial wake word configuration into Rust
+  const initialWw = loadInitialWakeWordState();
+  if (initialWw.enabled) {
+    syncWakeWordToRust(initialWw.enabled, initialWw.phrase, initialWw.sensitivity);
+  }
+
+  // 3. Hardware change listener (Bluetooth connects/disconnects, USB mics)
   onAudioDeviceChange(() => {
     console.log("[SettingsStore] Audio hardware change detected, refreshing devices...");
     useSettingsStore.getState().refreshDevices();
   });
 
-  // 3. Cross-webview mic changes via Tauri events (e.g. MainWindow -> OverlayWindow)
+  // 4. Cross-webview sync via Tauri events
   try {
     listen<{ deviceId: string }>("settings:mic-changed", (event) => {
       const newId = event.payload?.deviceId;
@@ -39,26 +90,42 @@ function startGlobalDeviceMonitoring() {
         useSettingsStore.setState({ selectedDeviceId: newId });
       }
     }).catch(() => {});
+
+    listen<WakeWordConfig>("wake-word:config-changed", (event) => {
+      const payload = event.payload;
+      if (payload) {
+        console.log("[SettingsStore] Received cross-window wake-word config event:", payload);
+        useSettingsStore.setState({
+          wakeWordEnabled: payload.enabled,
+          wakeWordPhrase: (payload.phrase as WakeWordPhrase) || "hey_voiceflow",
+          wakeWordSensitivity: payload.sensitivity,
+        });
+      }
+    }).catch(() => {});
   } catch {
     // Non-Tauri browser preview
   }
 
-  // 4. Cross-window storage event fallback
+  // 5. Cross-window storage event fallback
   window.addEventListener("storage", (e: StorageEvent) => {
-    if (e.key === STORAGE_KEY && e.newValue && e.newValue !== useSettingsStore.getState().selectedDeviceId) {
-      console.log("[SettingsStore] Storage event sync for mic:", e.newValue);
+    if (e.key === STORAGE_KEY_MIC && e.newValue && e.newValue !== useSettingsStore.getState().selectedDeviceId) {
       useSettingsStore.setState({ selectedDeviceId: e.newValue });
     }
   });
 }
 
+const initialWw = loadInitialWakeWordState();
+
 export const useSettingsStore = create<SettingsState>((set, get) => ({
-  selectedDeviceId: typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY) || "default" : "default",
+  selectedDeviceId: typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY_MIC) || "default" : "default",
   availableDevices: [],
   telemetryEnabled: isTelemetryEnabled(),
+  wakeWordEnabled: initialWw.enabled,
+  wakeWordPhrase: initialWw.phrase,
+  wakeWordSensitivity: initialWw.sensitivity,
 
   setSelectedDeviceId: (id: string) => {
-    localStorage.setItem(STORAGE_KEY, id);
+    localStorage.setItem(STORAGE_KEY_MIC, id);
     set({ selectedDeviceId: id });
     try {
       emit("settings:mic-changed", { deviceId: id }).catch(() => {});
@@ -72,6 +139,27 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ telemetryEnabled: enabled });
   },
 
+  setWakeWordEnabled: async (enabled: boolean) => {
+    localStorage.setItem(STORAGE_KEY_WW_ENABLED, String(enabled));
+    set({ wakeWordEnabled: enabled });
+    const { wakeWordPhrase, wakeWordSensitivity } = get();
+    await syncWakeWordToRust(enabled, wakeWordPhrase, wakeWordSensitivity);
+  },
+
+  setWakeWordPhrase: async (phrase: WakeWordPhrase) => {
+    localStorage.setItem(STORAGE_KEY_WW_PHRASE, phrase);
+    set({ wakeWordPhrase: phrase });
+    const { wakeWordEnabled, wakeWordSensitivity } = get();
+    await syncWakeWordToRust(wakeWordEnabled, phrase, wakeWordSensitivity);
+  },
+
+  setWakeWordSensitivity: async (sensitivity: number) => {
+    localStorage.setItem(STORAGE_KEY_WW_SENSITIVITY, String(sensitivity));
+    set({ wakeWordSensitivity: sensitivity });
+    const { wakeWordEnabled, wakeWordPhrase } = get();
+    await syncWakeWordToRust(wakeWordEnabled, wakeWordPhrase, sensitivity);
+  },
+
   refreshDevices: async () => {
     const devices = await getAudioInputDevices();
     const currentSelected = get().selectedDeviceId;
@@ -81,7 +169,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       devices.some((d) => d.deviceId === currentSelected);
 
     if (!deviceStillExists) {
-      localStorage.setItem(STORAGE_KEY, "default");
+      localStorage.setItem(STORAGE_KEY_MIC, "default");
       set({ availableDevices: devices, selectedDeviceId: "default" });
       try {
         emit("settings:mic-changed", { deviceId: "default" }).catch(() => {});

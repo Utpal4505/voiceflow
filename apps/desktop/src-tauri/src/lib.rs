@@ -314,8 +314,18 @@ fn set_wake_word_config(app: AppHandle, config: wake_word::WakeWordConfig) -> Re
 fn start_wake_word_calibration(app: AppHandle, phrase: String) -> Result<(), String> {
     let state = app.state::<AppState>();
     if let Ok(mut service) = state.wake_word_service.lock() {
-        service.start_calibration(&app, phrase);
+        service.start_calibration(&app, &phrase);
         Ok(())
+    } else {
+        Err("Failed to acquire lock on wake word service".to_string())
+    }
+}
+
+#[tauri::command]
+fn record_wake_word_calibration_step(app: AppHandle, phrase: String, step_index: usize) -> Result<serde_json::Value, String> {
+    let state = app.state::<AppState>();
+    if let Ok(mut service) = state.wake_word_service.lock() {
+        service.record_calibration_step(&app, phrase, step_index)
     } else {
         Err("Failed to acquire lock on wake word service".to_string())
     }
@@ -528,6 +538,7 @@ pub fn run() {
             get_wake_word_config,
             set_wake_word_config,
             start_wake_word_calibration,
+            record_wake_word_calibration_step,
             cancel_wake_word_calibration,
             get_wake_word_enrollment,
             reset_wake_word_enrollment

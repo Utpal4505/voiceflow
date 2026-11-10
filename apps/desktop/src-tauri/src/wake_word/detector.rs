@@ -5,8 +5,8 @@ use tauri::{AppHandle, Emitter};
 
 use super::audio_stream::RingBuffer;
 use super::dtw::DtwMatcher;
-use super::mfcc::{MfccExtractor, NUM_CEPSTRA, SAMPLE_RATE};
-use super::templates::{save_user_profile, WakeWordTemplates};
+use super::mfcc::{MfccExtractor, SAMPLE_RATE};
+use super::templates::WakeWordTemplates;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct WakeWordConfig {
@@ -25,16 +25,8 @@ impl Default for WakeWordConfig {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct CalibrationState {
-    pub phrase: String,
-    pub samples: Vec<Vec<[f32; NUM_CEPSTRA]>>,
-    pub is_collecting: bool,
-}
-
 pub struct WakeWordDetector {
     is_running: Arc<AtomicBool>,
-    _calibration_state: Arc<Mutex<Option<CalibrationState>>>,
 }
 
 impl WakeWordDetector {
@@ -42,11 +34,9 @@ impl WakeWordDetector {
         app: AppHandle,
         buffer: Arc<Mutex<RingBuffer>>,
         config: Arc<Mutex<WakeWordConfig>>,
-        calibration_state: Arc<Mutex<Option<CalibrationState>>>,
     ) -> Self {
         let is_running = Arc::new(AtomicBool::new(true));
         let running_flag = is_running.clone();
-        let cal_state_clone = calibration_state.clone();
 
         std::thread::spawn(move || {
             let extractor = MfccExtractor::new();
@@ -54,11 +44,18 @@ impl WakeWordDetector {
 
             let mut last_trigger_time = Instant::now() - Duration::from_secs(10);
             let mut last_log_time = Instant::now() - Duration::from_secs(10);
+            let mut last_templates_reload = Instant::now();
             let cooldown = Duration::from_millis(2500);
 
-            println!("[WakeWord Detector] Worker thread initialized and active");
+            println!("[WakeWord Detector] Continuous listening worker thread active");
 
             while running_flag.load(Ordering::Relaxed) {
+                // Periodically reload user templates in case they were updated by calibration wizard
+                if last_templates_reload.elapsed() > Duration::from_secs(2) {
+                    last_templates_reload = Instant::now();
+                    templates = WakeWordTemplates::build(&extractor);
+                }
+
                 // 1. Fetch current config
                 let current_config = {
                     if let Ok(cfg) = config.lock() {
@@ -68,19 +65,8 @@ impl WakeWordDetector {
                     }
                 };
 
-                // Check if a calibration session is currently underway
-                let cal_session = {
-                    if let Ok(guard) = cal_state_clone.lock() {
-                        guard.clone()
-                    } else {
-                        None
-                    }
-                };
-
-                let in_calibration = cal_session.is_some();
-
-                // If not enabled and not calibrating, sleep
-                if !current_config.enabled && !in_calibration {
+                // If disabled, sleep
+                if !current_config.enabled {
                     std::thread::sleep(Duration::from_millis(200));
                     continue;
                 }
@@ -99,8 +85,8 @@ impl WakeWordDetector {
                     continue;
                 }
 
-                // 3. Adaptive Voice Activity Detection (VAD) on the most recent 400ms (6,400 samples)
-                let recent_len = 6400.min(audio_samples.len());
+                // 3. Adaptive Voice Activity Detection (VAD) on the most recent 350ms (5,600 samples)
+                let recent_len = 5600.min(audio_samples.len());
                 let recent_samples = &audio_samples[audio_samples.len() - recent_len..];
                 let mut sum_sq = 0.0f32;
                 for &s in recent_samples {
@@ -109,22 +95,20 @@ impl WakeWordDetector {
                 let rms = (sum_sq / recent_len as f32).sqrt();
 
                 // Adaptive VAD threshold:
-                // Sensitivity 0.0 -> 0.0060 (quieter environments)
-                // Sensitivity 0.5 -> 0.0035 (standard conversational speech 30-50cm)
-                // Sensitivity 1.0 -> 0.0018 (soft speech / quiet whispers)
-                let vad_energy_threshold = if in_calibration {
-                    0.0030f32 // Slightly sensitive during user enrollment
-                } else {
-                    (0.006 - current_config.sensitivity.clamp(0.0, 1.0) * 0.0042).max(0.0015)
-                };
+                // Base ambient room noise floor is ~0.0040 - 0.0055
+                // Real conversational speech is ~0.015 - 0.040
+                // Sensitivity 0.0 -> 0.016 (only strong clear voice)
+                // Sensitivity 0.5 -> 0.011 (standard normal voice, above noise floor)
+                // Sensitivity 1.0 -> 0.007 (softer voice)
+                let vad_energy_threshold = (0.016 - current_config.sensitivity.clamp(0.0, 1.0) * 0.009).max(0.007);
 
                 // Periodic diagnostic logging every 2.0s
                 let now = Instant::now();
                 if now.duration_since(last_log_time) >= Duration::from_millis(2000) {
                     last_log_time = now;
                     println!(
-                        "[WakeWord Detector] Live Monitor: RMS={:.5} (VAD gate={:.5}) | Mode='{}' | Calibrating={} | Sens={:.2}",
-                        rms, vad_energy_threshold, current_config.phrase, in_calibration, current_config.sensitivity
+                        "[WakeWord Detector] Live Monitor: RMS={:.5} (VAD gate={:.5}) | Mode='{}' | Sens={:.2}",
+                        rms, vad_energy_threshold, current_config.phrase, current_config.sensitivity
                     );
                 }
 
@@ -139,72 +123,14 @@ impl WakeWordDetector {
                     rms, vad_energy_threshold
                 );
 
-                // --- PATH A: VOICE ENROLLMENT / CALIBRATION MODE ---
-                if let Some(mut session) = cal_session {
-                    // Extract recent candidate utterance (last 1.6s ~ 25,600 samples)
-                    let candidate_len = 25600.min(audio_samples.len());
-                    let candidate_audio = &audio_samples[audio_samples.len() - candidate_len..];
-
-                    let query_mfcc = extractor.extract(candidate_audio);
-                    if query_mfcc.len() >= 30 {
-                        session.samples.push(query_mfcc);
-                        let sample_num = session.samples.len();
-
-                        println!(
-                            "[WakeWord Calibration] Captured voice sample #{}/3 for '{}' ({} MFCC frames)",
-                            sample_num, session.phrase, session.samples.last().unwrap().len()
-                        );
-
-                        let step_payload = serde_json::json!({
-                            "step": sample_num,
-                            "maxSteps": 3,
-                            "phrase": session.phrase
-                        });
-                        let _ = app.emit("wake-word:calibration-step", step_payload);
-
-                        if sample_num >= 3 {
-                            println!("[WakeWord Calibration] All 3 samples captured! Ensembling medoid profile...");
-                            let best_prototype = WakeWordTemplates::select_best_prototype(&session.samples);
-                            let _ = save_user_profile(&session.phrase, best_prototype.clone(), 3);
-
-                            if session.phrase == "hey_flow" {
-                                templates.user_hey_flow = Some(best_prototype);
-                            } else {
-                                templates.user_hey_voiceflow = Some(best_prototype);
-                            }
-
-                            if let Ok(mut guard) = cal_state_clone.lock() {
-                                *guard = None; // Reset calibration session
-                            }
-
-                            let complete_payload = serde_json::json!({
-                                "phrase": session.phrase,
-                                "success": true
-                            });
-                            let _ = app.emit("wake-word:calibration-complete", complete_payload);
-                            println!("[WakeWord Calibration] Calibration complete and user profile activated!");
-                        } else {
-                            // Update stored session state
-                            if let Ok(mut guard) = cal_state_clone.lock() {
-                                *guard = Some(session);
-                            }
-                        }
-
-                        // Pause between samples so user has time to prepare
-                        std::thread::sleep(Duration::from_millis(1600));
-                        continue;
-                    }
-                }
-
-                // --- PATH B: STANDARD BACKGROUND WAKE WORD DETECTION ---
                 // 4. Cooldown check
                 if last_trigger_time.elapsed() < cooldown {
                     std::thread::sleep(Duration::from_millis(100));
                     continue;
                 }
 
-                // 5. Compute MFCC features on candidate speech slice (last 1.6s ~ 25,600 samples)
-                let candidate_len = 25600.min(audio_samples.len());
+                // 5. Compute MFCC features on candidate speech slice (last 1.5s ~ 24,000 samples)
+                let candidate_len = 24000.min(audio_samples.len());
                 let candidate_audio = &audio_samples[audio_samples.len() - candidate_len..];
 
                 let query_mfcc = extractor.extract(candidate_audio);
@@ -223,10 +149,10 @@ impl WakeWordDetector {
                 // Test "Hey VoiceFlow"
                 if check_voiceflow {
                     if let Some(user_tpl) = &templates.user_hey_voiceflow {
-                        // Matching against user's enrolled voice (high precision!)
+                        // Matching against user's enrolled voice (Cosine DTW distance)
                         let dist = DtwMatcher::distance(&query_mfcc, user_tpl);
-                        // Sensitivity threshold for enrolled voice: 0.60 to 0.95
-                        let threshold = 0.60 + current_config.sensitivity.clamp(0.0, 1.0) * 0.35;
+                        // Sensitivity threshold for enrolled voice: 0.45 (strict) to 0.65 (sensitive)
+                        let threshold = 0.45 + current_config.sensitivity.clamp(0.0, 1.0) * 0.20;
                         println!(
                             "[WakeWord DTW] VoiceFlow (Enrolled User Profile): Distance={:.3} vs Threshold={:.3}",
                             dist, threshold
@@ -239,7 +165,7 @@ impl WakeWordDetector {
                     } else {
                         // Matching against synthetic base template
                         let dist = DtwMatcher::distance(&query_mfcc, &templates.base_hey_voiceflow);
-                        let threshold = 1.15 + current_config.sensitivity.clamp(0.0, 1.0) * 0.50;
+                        let threshold = 0.55 + current_config.sensitivity.clamp(0.0, 1.0) * 0.20;
                         println!(
                             "[WakeWord DTW] VoiceFlow (Base Generic Template): Distance={:.3} vs Threshold={:.3}",
                             dist, threshold
@@ -256,7 +182,7 @@ impl WakeWordDetector {
                 if check_flow {
                     if let Some(user_tpl) = &templates.user_hey_flow {
                         let dist = DtwMatcher::distance(&query_mfcc, user_tpl);
-                        let threshold = 0.60 + current_config.sensitivity.clamp(0.0, 1.0) * 0.35;
+                        let threshold = 0.45 + current_config.sensitivity.clamp(0.0, 1.0) * 0.20;
                         println!(
                             "[WakeWord DTW] Flow (Enrolled User Profile): Distance={:.3} vs Threshold={:.3}",
                             dist, threshold
@@ -268,7 +194,7 @@ impl WakeWordDetector {
                         }
                     } else {
                         let dist = DtwMatcher::distance(&query_mfcc, &templates.base_hey_flow);
-                        let threshold = 1.15 + current_config.sensitivity.clamp(0.0, 1.0) * 0.50;
+                        let threshold = 0.55 + current_config.sensitivity.clamp(0.0, 1.0) * 0.20;
                         println!(
                             "[WakeWord DTW] Flow (Base Generic Template): Distance={:.3} vs Threshold={:.3}",
                             dist, threshold
@@ -298,17 +224,14 @@ impl WakeWordDetector {
                     // Sleep 1.5s to prevent feedback loop
                     std::thread::sleep(Duration::from_millis(1500));
                 } else {
-                    std::thread::sleep(Duration::from_millis(50));
+                    std::thread::sleep(Duration::from_millis(60));
                 }
             }
 
-            println!("[WakeWord Detector] Worker thread exiting gracefully");
+            println!("[WakeWord Detector] Continuous listening worker thread exiting");
         });
 
-        Self {
-            is_running,
-            _calibration_state: calibration_state,
-        }
+        Self { is_running }
     }
 
     pub fn stop(&self) {

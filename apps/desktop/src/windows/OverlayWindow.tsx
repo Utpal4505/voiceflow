@@ -50,19 +50,23 @@ export default function OverlayWindow() {
     return () => console.log("[Overlay] Component unmounted");
   }, []);
 
-  const handleAudioChunkRef = useRef<(chunk: ArrayBuffer, seq: number) => void>(() => {});
+  const handleAudioChunkRef = useRef<(chunk: ArrayBuffer, seq: number, chunkVol?: number) => void>(() => {});
   const handleSubmitRef = useRef<() => void>(() => {});
   const prerollBufferRef = useRef<ArrayBuffer | null>(null);
   const seqOffsetRef = useRef<number>(0);
   const hasSpokenRef = useRef<boolean>(false);
   const lastVoiceTimeRef = useRef<number>(0);
+  const lastTranscriptLenRef = useRef<number>(0);
   const transcriptRef = useRef(transcript);
   transcriptRef.current = transcript;
   const volumeRef = useRef<number>(0);
   const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null);
 
-  const onChunkCallback = useCallback((chunk: ArrayBuffer, seq: number) => {
-    handleAudioChunkRef.current(chunk, seq);
+  const onChunkCallback = useCallback((chunk: ArrayBuffer, seq: number, chunkVol?: number) => {
+    if (chunkVol !== undefined) {
+      volumeRef.current = chunkVol;
+    }
+    handleAudioChunkRef.current(chunk, seq, chunkVol);
 
     if (Date.now() - startTimeRef.current > MAX_RECORDING_MS) {
       console.warn("[Overlay] Max recording limit reached, submitting...");
@@ -74,43 +78,61 @@ export default function OverlayWindow() {
     useAudio(onChunkCallback);
   volumeRef.current = volume;
 
-  // Wall-Clock Adaptive Silence Auto-Submit Monitor
+  // Adaptive Silence Auto-Submit Monitor
+  // Fast-track 750ms for commands ("open VS Code"), forgiving 2200ms with visual countdown for dictation
   useEffect(() => {
     if (sessionState !== "recording") {
       hasSpokenRef.current = false;
       lastVoiceTimeRef.current = 0;
+      lastTranscriptLenRef.current = 0;
       setCountdownSeconds(null);
       return;
     }
 
     const timer = setInterval(() => {
       const currentVol = volumeRef.current;
-      const currentText = (transcriptRef.current?.text || "").trim().toLowerCase();
+      const currentText = (transcriptRef.current?.text || "").trim();
+      const lowerText = currentText.toLowerCase();
 
-      // Voice onset: active volume >= 0.008 OR partial transcript text has arrived!
-      if (currentVol >= 0.008 || currentText.length > 0) {
+      // Check if user is vocalizing: volume >= 0.038 indicates active human vocalization
+      const isVoiceActive = currentVol >= 0.038;
+      // Also check if new words just arrived from backend
+      const hasNewWords = currentText.length > lastTranscriptLenRef.current;
+      if (hasNewWords) {
+        lastTranscriptLenRef.current = currentText.length;
+      }
+
+      // Detect initial speech onset (user has begun speaking)
+      if (isVoiceActive || currentText.length > 0) {
         if (!hasSpokenRef.current) {
           hasSpokenRef.current = true;
-          console.log("[Overlay] Voice onset detected (volume:", currentVol.toFixed(4), "text:", currentText, ")");
+          lastVoiceTimeRef.current = Date.now();
+          console.log(
+            `[SilenceMonitor] Speech onset detected (vol: ${currentVol.toFixed(3)}, text: "${currentText}")`
+          );
         }
+      }
+
+      if (isVoiceActive || hasNewWords) {
+        // User is actively speaking: refresh voice timestamp and clear any countdown
         lastVoiceTimeRef.current = Date.now();
-        setCountdownSeconds((prev) => (prev !== null ? null : prev));
+        setCountdownSeconds(null);
         return;
       }
 
-      // If speech was active previously, and now we are in silence:
+      // If user has spoken and is now in silence:
       if (hasSpokenRef.current && lastVoiceTimeRef.current > 0) {
         const silenceMs = Date.now() - lastVoiceTimeRef.current;
 
         const isCommand =
-          currentText.startsWith("open ") ||
-          currentText.startsWith("launch ") ||
-          currentText.startsWith("start ") ||
-          currentText.startsWith("search ") ||
-          currentText.startsWith("google ") ||
-          currentText.startsWith("youtube ");
+          lowerText.startsWith("open ") ||
+          lowerText.startsWith("launch ") ||
+          lowerText.startsWith("start ") ||
+          lowerText.startsWith("search ") ||
+          lowerText.startsWith("google ") ||
+          lowerText.startsWith("youtube ");
 
-        // Commands: 750ms silence window for instant execution
+        // Commands: 750ms silence window for instant execution without pressing Enter
         // Long dictation: 2200ms silence window to allow natural thinking pauses
         const silenceLimitMs = isCommand ? 750 : 2200;
 
@@ -118,27 +140,31 @@ export default function OverlayWindow() {
         if (!isCommand && silenceMs >= 1200 && silenceMs < silenceLimitMs) {
           const remainingSec = Math.max(1, Math.ceil((silenceLimitMs - silenceMs) / 1000));
           setCountdownSeconds(remainingSec);
-        } else if (isCommand || silenceMs < 1200) {
-          setCountdownSeconds((prev) => (prev !== null ? null : prev));
+        } else {
+          setCountdownSeconds(null);
         }
 
         if (silenceMs >= silenceLimitMs) {
           console.log(
-            `[Overlay] Auto-submit triggered on silence (${silenceMs}ms, isCommand: ${isCommand})`
+            `[SilenceMonitor] Auto-submit triggered on silence (${silenceMs}ms, isCommand: ${isCommand})`
           );
           hasSpokenRef.current = false;
           lastVoiceTimeRef.current = 0;
+          lastTranscriptLenRef.current = 0;
           setCountdownSeconds(null);
           handleSubmitRef.current();
         }
       }
-    }, 100);
+    }, 75);
 
     return () => clearInterval(timer);
   }, [sessionState]);
 
   const handleAudioChunk = useCallback(
-    (chunk: ArrayBuffer, seq: number) => {
+    (chunk: ArrayBuffer, seq: number, chunkVol?: number) => {
+      if (chunkVol !== undefined) {
+        volumeRef.current = chunkVol;
+      }
       if (currentSessionIdRef.current && isConnected) {
         sendAudioChunk(currentSessionIdRef.current, seq + seqOffsetRef.current, chunk);
       }
@@ -159,6 +185,7 @@ export default function OverlayWindow() {
     hasInsertedRef.current = false;
     hasSpokenRef.current = false;
     lastVoiceTimeRef.current = 0;
+    lastTranscriptLenRef.current = 0;
     setCountdownSeconds(null);
     setExecutingAction(null);
   }, [cancelSession, stopRecording]);
@@ -296,6 +323,7 @@ export default function OverlayWindow() {
     hasInsertedRef.current = false;
     hasSpokenRef.current = false;
     lastVoiceTimeRef.current = 0;
+    lastTranscriptLenRef.current = 0;
     setCountdownSeconds(null);
 
     startSession(sessionId);

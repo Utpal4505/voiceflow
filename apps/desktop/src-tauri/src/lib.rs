@@ -12,6 +12,7 @@ pub mod voice_actions;
 use std::str::FromStr;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
+#[allow(unused_imports)]
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use window::{get_foreground_window, restore_foreground_window, AppState};
 use context::{get_window_context, AppContext};
@@ -476,71 +477,17 @@ pub fn run() {
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
                     if is_dictation_shortcut(shortcut) {
-                        #[cfg(target_os = "windows")]
-                        {
-                            if event.state() == ShortcutState::Pressed {
-                                use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-                                    GetAsyncKeyState, VK_CONTROL, VK_SPACE,
-                                };
-
-                                if let Some(overlay) = app.get_webview_window("overlay") {
-                                    if is_overlay_window_visible(&overlay) {
-                                        println!("[Shortcut] Pressed while overlay visible: toggling off");
-                                        toggle_overlay(app.clone());
-                                        return;
-                                    }
-                                }
-
-                                println!("[Shortcut] Pressed: Showing overlay for dictation");
-                                show_overlay(app.clone());
-
-                                // Win32 RegisterHotKey only generates press events, never release.
-                                // Poll GetAsyncKeyState in background thread for true Push-to-Talk hold-and-release
-                                let app_handle = app.clone();
-                                std::thread::spawn(move || {
-                                    let press_start = std::time::Instant::now();
-                                    // Settle initial key states
-                                    std::thread::sleep(std::time::Duration::from_millis(60));
-
-                                    loop {
-                                        std::thread::sleep(std::time::Duration::from_millis(25));
-                                        let space_down = unsafe { GetAsyncKeyState(VK_SPACE as i32) < 0 };
-                                        let ctrl_down = unsafe { GetAsyncKeyState(VK_CONTROL as i32) < 0 };
-
-                                        // If user released EITHER Space or Control
-                                        if !space_down || !ctrl_down {
-                                            let elapsed = press_start.elapsed();
-                                            if elapsed >= std::time::Duration::from_millis(350) {
-                                                println!(
-                                                    "[Push-to-Talk] Released after {}ms! Submitting recording...",
-                                                    elapsed.as_millis()
-                                                );
-                                                let _ = app_handle.emit("overlay:submit", ());
-                                                if let Some(overlay) = app_handle.get_webview_window("overlay") {
-                                                    let _ = overlay.emit("overlay:submit", ());
-                                                }
-                                            } else {
-                                                println!(
-                                                    "[Shortcut] Quick tap detected ({}ms). Overlay remains open for dictation.",
-                                                    elapsed.as_millis()
-                                                );
-                                            }
-                                            break;
-                                        }
-
-                                        if press_start.elapsed() > std::time::Duration::from_secs(120) {
-                                            break;
-                                        }
-                                    }
-                                });
-                            }
-                        }
-
-                        #[cfg(not(target_os = "windows"))]
+                        #[cfg(target_os = "macos")]
                         {
                             if event.state() == ShortcutState::Pressed {
                                 toggle_overlay(app.clone());
                             }
+                        }
+                        #[cfg(not(target_os = "macos"))]
+                        {
+                            // On Windows, WH_KEYBOARD_LL in keyboard_hook.rs provides 100% reliable
+                            // OS-level intercept and hardware push-to-talk release detection.
+                            let _ = (app, shortcut, event);
                         }
                     }
                 })
@@ -594,7 +541,7 @@ pub fn run() {
                     let _ = app.global_shortcut().register(shortcut);
                 }
             }
-            #[cfg(not(target_os = "macos"))]
+            #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
             {
                 if let Ok(shortcut) = Shortcut::from_str("Control+Space") {
                     let _ = app.global_shortcut().register(shortcut);

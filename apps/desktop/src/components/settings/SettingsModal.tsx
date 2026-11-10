@@ -16,6 +16,7 @@ import {
 import { useSettingsStore } from "../../stores/settingsStore";
 import { trackSettingsChanged } from "../../lib/telemetry";
 import { check } from "@tauri-apps/plugin-updater";
+import { isMac } from "../../utils/platform";
 
 interface Props {
   isOpen: boolean;
@@ -100,10 +101,11 @@ export default function SettingsModal({
   const cpuName = hardwareProfile?.cpuModel?.replace(/\(R\)|\(TM\)/gi, "").trim() || "12th Gen Intel Core i5";
 
   // Sanitize Neural Acceleration badge so it does NOT repeat the CPU name twice
-  const accelerationLabel =
-    hardwareProfile?.engineTier === "gpu-cuda"
-      ? `${hardwareProfile?.gpuName || "CUDA"} Neural Acceleration`
-      : "AVX2 Neural Vector Acceleration";
+  const accelerationLabel = isMac()
+    ? "Apple Silicon Metal Acceleration"
+    : hardwareProfile?.engineTier === "gpu-cuda"
+    ? `${hardwareProfile?.gpuName || "CUDA"} Neural Acceleration`
+    : "AVX2 Neural Vector Acceleration";
 
   const threadCount = hardwareProfile?.optimalThreads || 8;
   const coreCount = hardwareProfile?.logicalCores || threadCount;
@@ -155,9 +157,13 @@ export default function SettingsModal({
                     <Power className="h-3.5 w-3.5" />
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-xs font-medium text-slate-200">Start with Windows</span>
+                    <span className="text-xs font-medium text-slate-200">
+                      {isMac() ? "Start at Login" : "Start with Windows"}
+                    </span>
                     <span className="text-[11px] text-slate-500">
-                      Launch VoiceFlow minimized in the system tray on boot
+                      {isMac()
+                        ? "Launch VoiceFlow minimized in the menu bar on startup"
+                        : "Launch VoiceFlow minimized in the system tray on boot"}
                     </span>
                   </div>
                 </div>

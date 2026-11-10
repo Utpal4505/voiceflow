@@ -11,7 +11,7 @@ pub fn create_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let open_item = MenuItemBuilder::with_id("open", "Open VoiceFlow").build(app)?;
 
     #[cfg(target_os = "macos")]
-    let toggle_label = "Toggle Dictation (Cmd+Space)";
+    let toggle_label = "Toggle Dictation (Option+Space / Ctrl+Space)";
     #[cfg(not(target_os = "macos"))]
     let toggle_label = "Toggle Dictation (Ctrl+Space)";
 

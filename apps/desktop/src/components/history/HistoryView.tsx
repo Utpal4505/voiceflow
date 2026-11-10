@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { Search, Copy, Check, Trash2, Clock, FileText } from "lucide-react";
 import { useHistoryStore, HistoryItem } from "../../stores/historyStore";
+import { getShortcutDisplay } from "../../utils/platform";
 
 export default function HistoryView() {
   const { history, removeHistoryItem, clearHistory } = useHistoryStore();
   const [searchTerm, setSearchTerm] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const shortcutInfo = getShortcutDisplay();
 
   const filteredHistory = history.filter((item) =>
     item.text.toLowerCase().includes(searchTerm.toLowerCase())
@@ -76,9 +78,9 @@ export default function HistoryView() {
           </span>
           <p className="text-xs text-slate-500 max-w-sm flex items-center justify-center gap-1.5 mt-1">
             <span>Press</span>
-            <kbd className="vf-keycap">Ctrl</kbd>
+            <kbd className="vf-keycap">{shortcutInfo.modKey}</kbd>
             <span className="text-slate-400 font-bold">+</span>
-            <kbd className="vf-keycap">Space</kbd>
+            <kbd className="vf-keycap">{shortcutInfo.key}</kbd>
             <span>anywhere to start voice typing.</span>
           </p>
         </div>

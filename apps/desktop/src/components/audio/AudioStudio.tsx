@@ -15,6 +15,7 @@ import {
 import { useState } from "react";
 import WaveformBars from "../overlay/WaveformBars";
 import { useHistoryStore, HistoryItem } from "../../stores/historyStore";
+import { getShortcutDisplay } from "../../utils/platform";
 
 interface Props {
   selectedDeviceId: string;
@@ -53,6 +54,7 @@ export default function AudioStudio({
   const { history } = useHistoryStore();
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [copiedPad, setCopiedPad] = useState(false);
+  const shortcutInfo = getShortcutDisplay();
 
   const recentItems = history.slice(0, 4);
 
@@ -422,13 +424,13 @@ export default function AudioStudio({
               </span>
             </div>
             <div className="flex items-center gap-1 font-mono text-xs font-semibold text-white">
-              <kbd className="vf-keycap">Ctrl</kbd>
+              <kbd className="vf-keycap">{shortcutInfo.modKey}</kbd>
               <span className="text-slate-400 font-bold">+</span>
-              <kbd className="vf-keycap">Space</kbd>
+              <kbd className="vf-keycap">{shortcutInfo.key}</kbd>
             </div>
           </div>
           <p className="text-[11px] text-slate-400 leading-relaxed">
-            Press this hotkey anywhere in Windows—in VS Code, Slack, Word, or Chrome—to dictate directly into your active cursor without switching windows.
+            {shortcutInfo.description}
           </p>
         </div>
       </div>

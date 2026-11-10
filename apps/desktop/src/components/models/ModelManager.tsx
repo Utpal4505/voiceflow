@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ModelInfo, WhisperModelId } from "@voiceflow/contracts";
+import { isMac } from "../../utils/platform";
 import {
   Download,
   Trash2,
@@ -70,7 +71,9 @@ export default function ModelManager({
           <div>
             <h2 className="text-sm font-semibold text-white tracking-tight">Speech Recognition Models</h2>
             <p className="text-xs text-slate-400">
-              Download and manage local neural Whisper models optimized for AVX2 execution
+              {isMac()
+                ? "Download and manage local neural Whisper models with Metal GPU acceleration"
+                : "Download and manage local neural Whisper models optimized for AVX2 execution"}
             </p>
           </div>
 

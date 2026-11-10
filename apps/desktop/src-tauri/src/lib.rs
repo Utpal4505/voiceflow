@@ -312,6 +312,34 @@ fn insert_text(app: AppHandle, text: String) -> Result<(), String> {
     Ok(())
 }
 
+fn is_dictation_shortcut(shortcut: &Shortcut) -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        // On macOS: Avoid Command+Space (which is hardwired to Spotlight / Siri)
+        // Support Option+Space (Alt+Space) and Control+Space
+        if let Ok(target) = Shortcut::from_str("Alt+Space") {
+            if shortcut == &target {
+                return true;
+            }
+        }
+        if let Ok(target) = Shortcut::from_str("Control+Space") {
+            if shortcut == &target {
+                return true;
+            }
+        }
+        false
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        if let Ok(target) = Shortcut::from_str("Control+Space") {
+            if shortcut == &target {
+                return true;
+            }
+        }
+        false
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(target_os = "windows")]
@@ -329,10 +357,8 @@ pub fn run() {
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
                     if event.state() == ShortcutState::Pressed {
-                        if let Ok(target) = Shortcut::from_str("CommandOrControl+Space") {
-                            if shortcut == &target {
-                                toggle_overlay(app.clone());
-                            }
+                        if is_dictation_shortcut(shortcut) {
+                            toggle_overlay(app.clone());
                         }
                     }
                 })
@@ -376,8 +402,21 @@ pub fn run() {
                     }
                 }
             }
-            if let Ok(shortcut) = Shortcut::from_str("CommandOrControl+Space") {
-                let _ = app.global_shortcut().register(shortcut);
+            #[cfg(target_os = "macos")]
+            {
+                // Register both Option+Space and Control+Space on macOS to never collide with Spotlight (Cmd+Space)
+                if let Ok(shortcut) = Shortcut::from_str("Alt+Space") {
+                    let _ = app.global_shortcut().register(shortcut);
+                }
+                if let Ok(shortcut) = Shortcut::from_str("Control+Space") {
+                    let _ = app.global_shortcut().register(shortcut);
+                }
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                if let Ok(shortcut) = Shortcut::from_str("Control+Space") {
+                    let _ = app.global_shortcut().register(shortcut);
+                }
             }
             #[cfg(target_os = "windows")]
             keyboard_hook::init_keyboard_hook(app.handle().clone());

@@ -129,11 +129,6 @@ pub fn is_autostart_enabled() -> bool {
     }
 }
 
-#[cfg(not(target_os = "windows"))]
-pub fn is_autostart_enabled() -> bool {
-    false
-}
-
 #[cfg(target_os = "windows")]
 pub fn enable_autostart() -> Result<(), String> {
     let current_exe = std::env::current_exe().map_err(|e| e.to_string())?;
@@ -172,11 +167,6 @@ pub fn enable_autostart() -> Result<(), String> {
     }
 }
 
-#[cfg(not(target_os = "windows"))]
-pub fn enable_autostart() -> Result<(), String> {
-    Ok(())
-}
-
 #[cfg(target_os = "windows")]
 pub fn disable_autostart() -> Result<(), String> {
     let subkey = to_wide_chars("Software\\Microsoft\\Windows\\CurrentVersion\\Run");
@@ -202,7 +192,71 @@ pub fn disable_autostart() -> Result<(), String> {
     }
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_os = "macos")]
+fn get_launch_agent_path() -> Option<PathBuf> {
+    let home = std::env::var("HOME").ok()?;
+    Some(PathBuf::from(home).join("Library/LaunchAgents/com.voiceflow.app.plist"))
+}
+
+#[cfg(target_os = "macos")]
+pub fn is_autostart_enabled() -> bool {
+    get_launch_agent_path().map(|p| p.exists()).unwrap_or(false)
+}
+
+#[cfg(target_os = "macos")]
+pub fn enable_autostart() -> Result<(), String> {
+    let plist_path = get_launch_agent_path().ok_or("Cannot locate HOME directory")?;
+    if let Some(parent) = plist_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let current_exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let exe_str = current_exe.to_string_lossy();
+
+    let plist_content = format!(r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.voiceflow.app</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{}</string>
+        <string>--minimized</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>ProcessType</key>
+    <string>Interactive</string>
+</dict>
+</plist>"#, exe_str);
+
+    std::fs::write(&plist_path, plist_content).map_err(|e| e.to_string())?;
+    println!("[Autostart] Registered macOS LaunchAgent at {:?}", plist_path);
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+pub fn disable_autostart() -> Result<(), String> {
+    if let Some(plist_path) = get_launch_agent_path() {
+        if plist_path.exists() {
+            let _ = std::fs::remove_file(&plist_path);
+            println!("[Autostart] Removed macOS LaunchAgent at {:?}", plist_path);
+        }
+    }
+    Ok(())
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+pub fn is_autostart_enabled() -> bool {
+    false
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+pub fn enable_autostart() -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
 pub fn disable_autostart() -> Result<(), String> {
     Ok(())
 }

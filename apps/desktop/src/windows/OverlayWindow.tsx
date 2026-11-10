@@ -54,13 +54,65 @@ export default function OverlayWindow() {
   const handleSubmitRef = useRef<() => void>(() => {});
   const prerollBufferRef = useRef<ArrayBuffer | null>(null);
   const seqOffsetRef = useRef<number>(0);
+  const hasSpokenRef = useRef<boolean>(false);
+  const silentFramesRef = useRef<number>(0);
+  const transcriptRef = useRef(transcript);
+  transcriptRef.current = transcript;
+  const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null);
 
-  const onChunkCallback = useCallback((chunk: ArrayBuffer, seq: number) => {
+  const onChunkCallback = useCallback((chunk: ArrayBuffer, seq: number, chunkVolume: number = 0) => {
     handleAudioChunkRef.current(chunk, seq);
 
     if (Date.now() - startTimeRef.current > MAX_RECORDING_MS) {
       console.warn("[Overlay] Max recording limit reached, submitting...");
       handleSubmitRef.current();
+      return;
+    }
+
+    // Adaptive Silence Auto-Submit Engine
+    if (sessionStateRef.current === "recording") {
+      if (chunkVolume >= 0.016) {
+        // Voice activity detected: reset silence counter and cancel any pending countdown
+        if (!hasSpokenRef.current) {
+          hasSpokenRef.current = true;
+          console.log("[Overlay] Voice onset detected in recording session");
+        }
+        silentFramesRef.current = 0;
+        setCountdownSeconds((prev) => (prev !== null ? null : prev));
+      } else if (hasSpokenRef.current) {
+        // Voice was previously detected; count consecutive 100ms silent chunks
+        silentFramesRef.current += 1;
+
+        // Check if the current partial transcript indicates an action/command
+        const currentText = (transcriptRef.current?.text || "").trim().toLowerCase();
+        const isCommand =
+          currentText.startsWith("open ") ||
+          currentText.startsWith("launch ") ||
+          currentText.startsWith("start ") ||
+          currentText.startsWith("search ") ||
+          currentText.startsWith("google ") ||
+          currentText.startsWith("youtube ");
+
+        // Command mode: 7 frames (~700ms) for snappy instant execution
+        // Long dictation: 22 frames (~2.2s) to allow natural thinking pauses
+        const silenceLimit = isCommand ? 7 : 22;
+
+        // Visual Countdown: Display in HUD capsule when approaching silence limit on dictation
+        if (!isCommand && silentFramesRef.current >= 13 && silentFramesRef.current < silenceLimit) {
+          const remaining = Math.max(1, Math.ceil((silenceLimit - silentFramesRef.current) / 10));
+          setCountdownSeconds(remaining);
+        }
+
+        if (silentFramesRef.current >= silenceLimit) {
+          console.log(
+            `[Overlay] Auto-submit triggered on silence (${silentFramesRef.current * 100}ms, isCommand: ${isCommand})`
+          );
+          setCountdownSeconds(null);
+          silentFramesRef.current = 0;
+          hasSpokenRef.current = false;
+          handleSubmitRef.current();
+        }
+      }
     }
   }, []);
 
@@ -87,6 +139,9 @@ export default function OverlayWindow() {
     prerollBufferRef.current = null;
     seqOffsetRef.current = 0;
     hasInsertedRef.current = false;
+    hasSpokenRef.current = false;
+    silentFramesRef.current = 0;
+    setCountdownSeconds(null);
     setExecutingAction(null);
   }, [cancelSession, stopRecording]);
 
@@ -221,6 +276,9 @@ export default function OverlayWindow() {
     currentSessionIdRef.current = sessionId;
     startTimeRef.current = Date.now();
     hasInsertedRef.current = false;
+    hasSpokenRef.current = false;
+    silentFramesRef.current = 0;
+    setCountdownSeconds(null);
 
     startSession(sessionId);
 
@@ -410,7 +468,11 @@ export default function OverlayWindow() {
 
           <div className="flex flex-1 items-center truncate">
             <span className="truncate text-xs font-medium tracking-tight">
-              {executingAction ? (
+              {countdownSeconds !== null ? (
+                <span className="text-amber-300 font-semibold animate-pulse">
+                  Pausing… submitting in {countdownSeconds}s (speak to continue)
+                </span>
+              ) : executingAction ? (
                 <span className="text-[#C4B5FD] font-semibold animate-pulse">
                   {executingAction.label}
                 </span>

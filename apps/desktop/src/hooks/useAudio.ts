@@ -8,7 +8,7 @@ export interface AudioCaptureState {
   error: string | null;
 }
 
-export function useAudio(onChunk?: (chunk: ArrayBuffer, seq: number) => void) {
+export function useAudio(onChunk?: (chunk: ArrayBuffer, seq: number, volume?: number) => void) {
   const selectedDeviceId = useSettingsStore((s) => s.selectedDeviceId);
   const [isRecording, setIsRecording] = useState(false);
   const [volume, setVolume] = useState(0);
@@ -192,7 +192,7 @@ export function useAudio(onChunk?: (chunk: ArrayBuffer, seq: number) => void) {
           }
 
           if (onChunkRef.current) {
-            onChunkRef.current(buffer, seqRef.current++);
+            onChunkRef.current(buffer, seqRef.current++, chunkVolume);
           }
         }
       };

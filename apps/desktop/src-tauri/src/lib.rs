@@ -459,6 +459,9 @@ fn is_dictation_shortcut(shortcut: &Shortcut) -> bool {
     }
 }
 
+static SHORTCUT_PRESS_TIME: std::sync::Mutex<Option<std::time::Instant>> =
+    std::sync::Mutex::new(None);
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(target_os = "windows")]
@@ -475,9 +478,45 @@ pub fn run() {
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
-                    if event.state() == ShortcutState::Pressed {
-                        if is_dictation_shortcut(shortcut) {
-                            toggle_overlay(app.clone());
+                    if is_dictation_shortcut(shortcut) {
+                        match event.state() {
+                            ShortcutState::Pressed => {
+                                let mut guard = SHORTCUT_PRESS_TIME.lock().unwrap();
+                                if guard.is_none() {
+                                    *guard = Some(std::time::Instant::now());
+                                    if let Some(overlay) = app.get_webview_window("overlay") {
+                                        if !is_overlay_window_visible(&overlay) {
+                                            println!("[Shortcut] Pressed: Showing overlay for dictation");
+                                            show_overlay(app.clone());
+                                        } else {
+                                            println!("[Shortcut] Pressed: Overlay is already visible, toggling off");
+                                            toggle_overlay(app.clone());
+                                        }
+                                    }
+                                }
+                            }
+                            ShortcutState::Released => {
+                                let mut guard = SHORTCUT_PRESS_TIME.lock().unwrap();
+                                if let Some(press_time) = guard.take() {
+                                    let elapsed = press_time.elapsed();
+                                    // If held for >= 350ms, this was a deliberate Push-to-Talk gesture!
+                                    if elapsed >= std::time::Duration::from_millis(350) {
+                                        println!(
+                                            "[Shortcut] Push-to-Talk release detected (held for {}ms)! Emitting overlay:submit",
+                                            elapsed.as_millis()
+                                        );
+                                        let _ = app.emit("overlay:submit", ());
+                                        if let Some(overlay) = app.get_webview_window("overlay") {
+                                            let _ = overlay.emit("overlay:submit", ());
+                                        }
+                                    } else {
+                                        println!(
+                                            "[Shortcut] Tap-to-Toggle detected (held for {}ms). Overlay stays open.",
+                                            elapsed.as_millis()
+                                        );
+                                    }
+                                }
+                            }
                         }
                     }
                 })

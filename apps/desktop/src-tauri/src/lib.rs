@@ -6,16 +6,30 @@ pub mod window;
 pub mod keyboard_hook;
 pub mod server_manager;
 pub mod tray;
+pub mod wake_word;
+pub mod voice_actions;
 
 use std::str::FromStr;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
+#[allow(unused_imports)]
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use window::{get_foreground_window, restore_foreground_window, AppState};
 use context::{get_window_context, AppContext};
 
 pub(crate) fn trigger_toggle_overlay(app: AppHandle) {
     toggle_overlay(app);
+}
+
+pub(crate) fn trigger_wake_word_overlay(app: AppHandle) {
+    if let Some(overlay) = app.get_webview_window("overlay") {
+        if !is_overlay_window_visible(&overlay) {
+            println!("[WakeWord] Triggering show_overlay for hands-free wake word");
+            show_overlay(app);
+        } else {
+            println!("[WakeWord] Overlay is already open and active; keeping dictation session alive");
+        }
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -277,6 +291,112 @@ fn set_autostart_status(app: AppHandle, enabled: bool) -> Result<bool, String> {
 }
 
 #[tauri::command]
+fn get_wake_word_config(app: AppHandle) -> wake_word::WakeWordConfig {
+    let state = app.state::<AppState>();
+    if let Ok(service) = state.wake_word_service.lock() {
+        service.get_config()
+    } else {
+        wake_word::WakeWordConfig::default()
+    }
+}
+
+#[tauri::command]
+fn set_wake_word_config(app: AppHandle, config: wake_word::WakeWordConfig) -> Result<wake_word::WakeWordConfig, String> {
+    let state = app.state::<AppState>();
+    if let Ok(mut service) = state.wake_word_service.lock() {
+        service.set_config(&app, config.clone());
+        let _ = app.emit("wake-word:config-changed", &config);
+        Ok(config)
+    } else {
+        Err("Failed to acquire lock on wake word service".to_string())
+    }
+}
+
+#[tauri::command]
+fn start_wake_word_calibration(app: AppHandle, phrase: String) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    if let Ok(mut service) = state.wake_word_service.lock() {
+        service.start_calibration(&app, &phrase);
+        Ok(())
+    } else {
+        Err("Failed to acquire lock on wake word service".to_string())
+    }
+}
+
+#[tauri::command]
+fn record_wake_word_calibration_step(app: AppHandle, phrase: String, step_index: usize) -> Result<serde_json::Value, String> {
+    let state = app.state::<AppState>();
+    if let Ok(mut service) = state.wake_word_service.lock() {
+        service.record_calibration_step(&app, phrase, step_index)
+    } else {
+        Err("Failed to acquire lock on wake word service".to_string())
+    }
+}
+
+#[tauri::command]
+fn cancel_wake_word_calibration(app: AppHandle) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    if let Ok(mut service) = state.wake_word_service.lock() {
+        service.cancel_calibration();
+        Ok(())
+    } else {
+        Err("Failed to acquire lock on wake word service".to_string())
+    }
+}
+
+#[tauri::command]
+fn get_wake_word_enrollment(app: AppHandle) -> Result<serde_json::Value, String> {
+    let state = app.state::<AppState>();
+    if let Ok(service) = state.wake_word_service.lock() {
+        Ok(service.get_enrolled_status())
+    } else {
+        Err("Failed to acquire lock on wake word service".to_string())
+    }
+}
+
+#[tauri::command]
+fn reset_wake_word_enrollment(app: AppHandle, phrase: String) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    if let Ok(mut service) = state.wake_word_service.lock() {
+        service.reset_enrollment(&phrase)
+    } else {
+        Err("Failed to acquire lock on wake word service".to_string())
+    }
+}
+
+#[tauri::command]
+fn get_wake_word_preroll_audio(app: AppHandle) -> Option<Vec<u8>> {
+    let state = app.state::<AppState>();
+    if let Ok(service) = state.wake_word_service.lock() {
+        service.get_preroll_audio()
+    } else {
+        None
+    }
+}
+
+#[tauri::command]
+fn set_wake_word_os_suspended(app: AppHandle, suspended: bool) {
+    let state = app.state::<AppState>();
+    if let Ok(service) = state.wake_word_service.lock() {
+        if suspended {
+            service.pause_for_os_lock();
+        } else {
+            service.resume_from_os_lock();
+        }
+    }
+}
+
+#[tauri::command]
+fn parse_voice_action(text: String) -> Option<voice_actions::ActionIntent> {
+    voice_actions::parse_voice_command(&text)
+}
+
+#[tauri::command]
+fn execute_voice_action(action: voice_actions::ActionIntent) -> voice_actions::ActionResult {
+    voice_actions::execute_intent(action)
+}
+
+#[tauri::command]
 fn insert_text(app: AppHandle, text: String) -> Result<(), String> {
     println!("[Rust Insert] insert_text command called. Text length: {}", text.len());
     #[cfg(target_os = "windows")]
@@ -356,9 +476,18 @@ pub fn run() {
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
-                    if event.state() == ShortcutState::Pressed {
-                        if is_dictation_shortcut(shortcut) {
-                            toggle_overlay(app.clone());
+                    if is_dictation_shortcut(shortcut) {
+                        #[cfg(target_os = "macos")]
+                        {
+                            if event.state() == ShortcutState::Pressed {
+                                toggle_overlay(app.clone());
+                            }
+                        }
+                        #[cfg(not(target_os = "macos"))]
+                        {
+                            // On Windows, WH_KEYBOARD_LL in keyboard_hook.rs provides 100% reliable
+                            // OS-level intercept and hardware push-to-talk release detection.
+                            let _ = (app, shortcut, event);
                         }
                     }
                 })
@@ -412,7 +541,7 @@ pub fn run() {
                     let _ = app.global_shortcut().register(shortcut);
                 }
             }
-            #[cfg(not(target_os = "macos"))]
+            #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
             {
                 if let Ok(shortcut) = Shortcut::from_str("Control+Space") {
                     let _ = app.global_shortcut().register(shortcut);
@@ -448,13 +577,27 @@ pub fn run() {
             get_active_context,
             insert_text,
             get_autostart_status,
-            set_autostart_status
+            set_autostart_status,
+            get_wake_word_config,
+            set_wake_word_config,
+            start_wake_word_calibration,
+            record_wake_word_calibration_step,
+            cancel_wake_word_calibration,
+            get_wake_word_enrollment,
+            reset_wake_word_enrollment,
+            get_wake_word_preroll_audio,
+            set_wake_word_os_suspended,
+            parse_voice_action,
+            execute_voice_action
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
         .run(|app_handle, event| {
             if let tauri::RunEvent::Exit = event {
                 let state = app_handle.state::<AppState>();
+                if let Ok(mut service) = state.wake_word_service.lock() {
+                    service.stop_listening();
+                }
                 if let Ok(mut guard) = state.server_process.lock() {
                     if let Some(mut child) = guard.take() {
                         server_manager::stop_server(&mut child);

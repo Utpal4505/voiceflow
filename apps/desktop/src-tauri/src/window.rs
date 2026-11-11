@@ -1,9 +1,11 @@
 use std::sync::Mutex;
+use crate::wake_word::WakeWordService;
 
 #[derive(Default)]
 pub struct AppState {
     pub previous_hwnd: Mutex<Option<isize>>,
     pub server_process: Mutex<Option<std::process::Child>>,
+    pub wake_word_service: Mutex<WakeWordService>,
 }
 
 #[cfg(target_os = "windows")]

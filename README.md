@@ -66,7 +66,7 @@ Ready to run VoiceFlow immediately? Grab the latest release for your platform:
 | :--- | :--- | :--- | :--- |
 | **[VoiceFlow for Mac (Apple Silicon)](https://github.com/Utpal4505/voiceflow-releases/releases/latest/download/VoiceFlow.dmg)** | `.dmg` | macOS (M1/M2/M3/M4) | **Recommended for Mac.** Hardware Metal GPU acceleration. |
 | **[VoiceFlow Installer](https://github.com/Utpal4505/voiceflow-releases/releases/latest/download/VoiceFlow-Setup.exe)** | `.exe` (NSIS) | Windows 10/11 | **Recommended for Windows.** Installer with auto-updater. |
-| **[VoiceFlow Portable](https://github.com/Utpal4505/voiceflow-releases/releases/latest/download/VoiceFlow_0.2.5_x64-setup.zip)** | `.zip` | Windows 10/11 | Portable archive. Extract and run anywhere without admin rights. |
+| **[VoiceFlow Portable](https://github.com/Utpal4505/voiceflow-releases/releases/latest/download/VoiceFlow_0.3.0_x64-setup.zip)** | `.zip` | Windows 10/11 | Portable archive. Extract and run anywhere without admin rights. |
 
 > [!NOTE]
 > **Windows SmartScreen Note**: Because VoiceFlow is an indie open-source application and has not purchased a \$500/yr enterprise EV code signing certificate, Windows Defender SmartScreen may show an _"Unrecognized app"_ prompt on first launch. Click **"More info"** &rarr; **"Run anyway"**. VoiceFlow binaries are 100% open-source, reproducible, and verifiable.
@@ -74,6 +74,34 @@ Ready to run VoiceFlow immediately? Grab the latest release for your platform:
 ---
 
 ## ✨ Key Features
+
+### 🚀 Smart Voice Actions & Universal Launcher ("Open Command")
+
+VoiceFlow is now more than just a dictation tool—it is your zero-latency voice operating system launcher:
+- **Instant App Launcher**: Say *"open VS Code"*, *"open Spotify"*, *"open Notepad"*, *"open Terminal"*, or *"open Calculator"*. VoiceFlow detects the intent, executes the native OS launcher, flashes a confirmation badge on the HUD, and dismisses without polluting your active editor with text.
+- **Dynamic Domain Resolver**: Say *"open gdha.online"*, *"open myportfolio.dev"*, or *"open github.com"*. VoiceFlow dynamically recognizes 20+ top-level domains (`.online`, `.dev`, `.ai`, `.io`, `.app`, `.tech`, etc.), formats a clean HTTPS URL, and launches it in your default web browser instantly.
+- **Smart Web Search Intents**: Say *"search YouTube for lo-fi beats"* or *"search Google for rust tauri shortcuts"*. VoiceFlow routes directly to the provider's search engine.
+
+### ⏱️ Adaptive Silence Auto-Submit & Zero-Enter Dictation
+
+Dictate completely hands-free without ever touching the <kbd>Enter</kbd> key:
+- **Command Fast-Track (750ms)**: Voice actions (*"open..."*, *"search..."*) automatically submit after just 750ms of trailing silence for instantaneous execution.
+- **Forgiving Dictation Window (2,200ms)**: When speaking long paragraphs, VoiceFlow provides a 2.2-second silence cushion with a subtle visual countdown badge (`1s`) so you can pause to think. If you resume speaking, the timer immediately resets and dictation seamlessly continues.
+
+### 🎙️ Hardware Push-to-Talk (`Ctrl + Space`)
+
+Engineered with a kernel-level Win32 low-level keyboard hook (`WH_KEYBOARD_LL`) running at time-critical scheduling priority:
+- **Hold & Release**: Hold <kbd>Ctrl</kbd> + <kbd>Space</kbd>, speak your thoughts, and release. The moment you release either key, VoiceFlow commits and pastes your transcript immediately with zero lag.
+- **Quick Tap**: Quickly tap <kbd>Ctrl</kbd> + <kbd>Space</kbd> ($<350\text{ms}$) to keep the HUD open for continuous hands-free dictation.
+- **Clean Documents**: Consumes keydown events to guarantee space characters never leak into your code editor or document.
+
+### 🗣️ 100% Offline Hands-Free Wake Word ("Hey Flow")
+
+Wake VoiceFlow completely hands-free from across the room:
+- **Zero Heavy Weights**: Powered by native MFCC feature extraction and Dynamic Time Warping (DTW) acoustic pattern matching.
+- **Adaptive VAD Gating**: Continuous noise-floor tracking keeps idle background CPU below **< 1%**.
+- **One-Breath Pre-Roll Ring Buffer**: Continuously maintains a 300ms pre-roll audio ring buffer so words spoken in the very same breath (*"Hey Flow open VS Code"*) are never clipped.
+- **Personalized Voice Enrollment**: 3-step rapid voice calibration with medoid clustering adapts the detector specifically to your vocal timbre, pitch, and accent.
 
 ### 🎯 System-Wide Global Hotkey (`Ctrl + Space`)
 

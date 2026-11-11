@@ -1,13 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import WaveformBars from "../components/overlay/WaveformBars";
 import { useAudio } from "../hooks/useAudio";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { useHistoryStore } from "../stores/historyStore";
 import { useSettingsStore } from "../stores/settingsStore";
 import VoiceFlowLogo from "../components/common/VoiceFlowLogo";
-import { Mic, Check, AlertCircle, Loader2 } from "lucide-react";
+import { Mic, Check, AlertCircle, Loader2, Globe, Search, Sparkles } from "lucide-react";
 import { trackDictationCompleted, trackInsertionFailed } from "../lib/telemetry";
 import { audioChime } from "../utils/audioChime";
 
@@ -17,6 +17,10 @@ export default function OverlayWindow() {
   const currentSessionIdRef = useRef<string | null>(null);
   const startTimeRef = useRef<number>(0);
   const hasInsertedRef = useRef(false);
+  const [executingAction, setExecutingAction] = useState<{
+    label: string;
+    category: "app" | "web" | "search";
+  } | null>(null);
 
   const { addHistoryItem } = useHistoryStore();
   const { initDeviceListener } = useSettingsStore();
@@ -46,13 +50,23 @@ export default function OverlayWindow() {
     return () => console.log("[Overlay] Component unmounted");
   }, []);
 
-  const handleAudioChunkRef = useRef<(chunk: ArrayBuffer, seq: number) => void>(() => {});
+  const handleAudioChunkRef = useRef<(chunk: ArrayBuffer, seq: number, chunkVol?: number) => void>(() => {});
   const handleSubmitRef = useRef<() => void>(() => {});
   const prerollBufferRef = useRef<ArrayBuffer | null>(null);
   const seqOffsetRef = useRef<number>(0);
+  const hasSpokenRef = useRef<boolean>(false);
+  const lastVoiceTimeRef = useRef<number>(0);
+  const lastTranscriptLenRef = useRef<number>(0);
+  const transcriptRef = useRef(transcript);
+  transcriptRef.current = transcript;
+  const volumeRef = useRef<number>(0);
+  const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null);
 
-  const onChunkCallback = useCallback((chunk: ArrayBuffer, seq: number) => {
-    handleAudioChunkRef.current(chunk, seq);
+  const onChunkCallback = useCallback((chunk: ArrayBuffer, seq: number, chunkVol?: number) => {
+    if (chunkVol !== undefined) {
+      volumeRef.current = chunkVol;
+    }
+    handleAudioChunkRef.current(chunk, seq, chunkVol);
 
     if (Date.now() - startTimeRef.current > MAX_RECORDING_MS) {
       console.warn("[Overlay] Max recording limit reached, submitting...");
@@ -62,9 +76,95 @@ export default function OverlayWindow() {
 
   const { isRecording, volume, isSilent, error: audioError, startRecording, stopRecording } =
     useAudio(onChunkCallback);
+  volumeRef.current = volume;
+
+  // Adaptive Silence Auto-Submit Monitor
+  // Fast-track 750ms for commands ("open VS Code"), forgiving 2200ms with visual countdown for dictation
+  useEffect(() => {
+    if (sessionState !== "recording") {
+      hasSpokenRef.current = false;
+      lastVoiceTimeRef.current = 0;
+      lastTranscriptLenRef.current = 0;
+      setCountdownSeconds(null);
+      return;
+    }
+
+    const timer = setInterval(() => {
+      const currentVol = volumeRef.current;
+      const currentText = (transcriptRef.current?.text || "").trim();
+      const lowerText = currentText.toLowerCase();
+
+      // Check if user is vocalizing: volume >= 0.038 indicates active human vocalization
+      const isVoiceActive = currentVol >= 0.038;
+      // Also check if new words just arrived from backend
+      const hasNewWords = currentText.length > lastTranscriptLenRef.current;
+      if (hasNewWords) {
+        lastTranscriptLenRef.current = currentText.length;
+      }
+
+      // Detect initial speech onset (user has begun speaking)
+      if (isVoiceActive || currentText.length > 0) {
+        if (!hasSpokenRef.current) {
+          hasSpokenRef.current = true;
+          lastVoiceTimeRef.current = Date.now();
+          console.log(
+            `[SilenceMonitor] Speech onset detected (vol: ${currentVol.toFixed(3)}, text: "${currentText}")`
+          );
+        }
+      }
+
+      if (isVoiceActive || hasNewWords) {
+        // User is actively speaking: refresh voice timestamp and clear any countdown
+        lastVoiceTimeRef.current = Date.now();
+        setCountdownSeconds(null);
+        return;
+      }
+
+      // If user has spoken and is now in silence:
+      if (hasSpokenRef.current && lastVoiceTimeRef.current > 0) {
+        const silenceMs = Date.now() - lastVoiceTimeRef.current;
+
+        const isCommand =
+          lowerText.startsWith("open ") ||
+          lowerText.startsWith("launch ") ||
+          lowerText.startsWith("start ") ||
+          lowerText.startsWith("search ") ||
+          lowerText.startsWith("google ") ||
+          lowerText.startsWith("youtube ");
+
+        // Commands: 750ms silence window for instant execution without pressing Enter
+        // Long dictation: 2200ms silence window to allow natural thinking pauses
+        const silenceLimitMs = isCommand ? 750 : 2200;
+
+        // Visual Countdown during dictation thinking pause (at >= 1200ms)
+        if (!isCommand && silenceMs >= 1200 && silenceMs < silenceLimitMs) {
+          const remainingSec = Math.max(1, Math.ceil((silenceLimitMs - silenceMs) / 1000));
+          setCountdownSeconds(remainingSec);
+        } else {
+          setCountdownSeconds(null);
+        }
+
+        if (silenceMs >= silenceLimitMs) {
+          console.log(
+            `[SilenceMonitor] Auto-submit triggered on silence (${silenceMs}ms, isCommand: ${isCommand})`
+          );
+          hasSpokenRef.current = false;
+          lastVoiceTimeRef.current = 0;
+          lastTranscriptLenRef.current = 0;
+          setCountdownSeconds(null);
+          handleSubmitRef.current();
+        }
+      }
+    }, 75);
+
+    return () => clearInterval(timer);
+  }, [sessionState]);
 
   const handleAudioChunk = useCallback(
-    (chunk: ArrayBuffer, seq: number) => {
+    (chunk: ArrayBuffer, seq: number, chunkVol?: number) => {
+      if (chunkVol !== undefined) {
+        volumeRef.current = chunkVol;
+      }
       if (currentSessionIdRef.current && isConnected) {
         sendAudioChunk(currentSessionIdRef.current, seq + seqOffsetRef.current, chunk);
       }
@@ -83,6 +183,11 @@ export default function OverlayWindow() {
     prerollBufferRef.current = null;
     seqOffsetRef.current = 0;
     hasInsertedRef.current = false;
+    hasSpokenRef.current = false;
+    lastVoiceTimeRef.current = 0;
+    lastTranscriptLenRef.current = 0;
+    setCountdownSeconds(null);
+    setExecutingAction(null);
   }, [cancelSession, stopRecording]);
 
   const cleanupStateRef = useRef(cleanupState);
@@ -103,6 +208,51 @@ export default function OverlayWindow() {
     async (textToInsert: string) => {
       console.log("[Overlay] handleInsert called with:", textToInsert, "hasInserted:", hasInsertedRef.current);
       if (hasInsertedRef.current || !textToInsert) return;
+
+      // Smart Voice Action Interception (App Launcher / Web Search / Domain Open)
+      const { voiceActionsEnabled } = useSettingsStore.getState();
+      if (voiceActionsEnabled) {
+        try {
+          const action = await invoke<{ type: string; payload: any } | null>("parse_voice_action", {
+            text: textToInsert,
+          });
+
+          if (action) {
+            console.log("[Overlay] Intercepted Smart Voice Action:", action);
+            hasInsertedRef.current = true;
+
+            let label = "Executing action…";
+            let category: "app" | "web" | "search" = "app";
+
+            if (action.type === "OpenUrl") {
+              label = `Opening ${action.payload.domain}…`;
+              category = "web";
+            } else if (action.type === "SearchWeb") {
+              label = `Searching ${action.payload.provider}: "${action.payload.query}"…`;
+              category = "search";
+            } else if (action.type === "LaunchApp") {
+              label = `Launching ${action.payload.display_name}…`;
+              category = "app";
+            }
+
+            setExecutingAction({ label, category });
+            audioChime.playWakeChime();
+
+            // Execute action natively via Rust
+            await invoke("execute_voice_action", { action });
+
+            // Allow brief visual feedback, then cleanly close overlay without typing text
+            setTimeout(() => {
+              setExecutingAction(null);
+              handleClose();
+            }, 850);
+            return;
+          }
+        } catch (actionErr) {
+          console.warn("[Overlay] Voice action parser check error:", actionErr);
+        }
+      }
+
       hasInsertedRef.current = true;
 
       // Add to local history log
@@ -171,6 +321,10 @@ export default function OverlayWindow() {
     currentSessionIdRef.current = sessionId;
     startTimeRef.current = Date.now();
     hasInsertedRef.current = false;
+    hasSpokenRef.current = false;
+    lastVoiceTimeRef.current = 0;
+    lastTranscriptLenRef.current = 0;
+    setCountdownSeconds(null);
 
     startSession(sessionId);
 
@@ -315,7 +469,17 @@ export default function OverlayWindow() {
       <div className="vf-hud-container w-full max-w-[440px] justify-between">
         {/* VoiceFlow Brand Mark / State Orb */}
         <div className="relative flex h-7 w-7 shrink-0 items-center justify-center">
-          {sessionState === "recording" ? (
+          {executingAction ? (
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#8B5CF6] shadow-[0_0_15px_rgba(139,92,246,0.6)] animate-pulse">
+              {executingAction.category === "search" ? (
+                <Search className="h-3.5 w-3.5 text-white" />
+              ) : executingAction.category === "web" ? (
+                <Globe className="h-3.5 w-3.5 text-white" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5 text-white" />
+              )}
+            </div>
+          ) : sessionState === "recording" ? (
             <div className="vf-mic-badge">
               <span
                 className="absolute -inset-1 rounded-full bg-[#FF5722]/50 blur-[3px] transition-opacity duration-150 animate-pulse"
@@ -350,7 +514,15 @@ export default function OverlayWindow() {
 
           <div className="flex flex-1 items-center truncate">
             <span className="truncate text-xs font-medium tracking-tight">
-              {sessionState === "processing" ? (
+              {countdownSeconds !== null ? (
+                <span className="text-amber-300 font-semibold animate-pulse">
+                  Pausing… submitting in {countdownSeconds}s (speak to continue)
+                </span>
+              ) : executingAction ? (
+                <span className="text-[#C4B5FD] font-semibold animate-pulse">
+                  {executingAction.label}
+                </span>
+              ) : sessionState === "processing" ? (
                 <span className="text-[#FF8A65] font-semibold">Transcribing with Whisper…</span>
               ) : sessionState === "done" ? (
                 <span className="text-[#10B981] font-semibold">

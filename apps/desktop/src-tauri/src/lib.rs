@@ -7,10 +7,12 @@ pub mod keyboard_hook;
 pub mod server_manager;
 pub mod tray;
 pub mod wake_word;
+pub mod voice_actions;
 
 use std::str::FromStr;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
+#[allow(unused_imports)]
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use window::{get_foreground_window, restore_foreground_window, AppState};
 use context::{get_window_context, AppContext};
@@ -385,6 +387,16 @@ fn set_wake_word_os_suspended(app: AppHandle, suspended: bool) {
 }
 
 #[tauri::command]
+fn parse_voice_action(text: String) -> Option<voice_actions::ActionIntent> {
+    voice_actions::parse_voice_command(&text)
+}
+
+#[tauri::command]
+fn execute_voice_action(action: voice_actions::ActionIntent) -> voice_actions::ActionResult {
+    voice_actions::execute_intent(action)
+}
+
+#[tauri::command]
 fn insert_text(app: AppHandle, text: String) -> Result<(), String> {
     println!("[Rust Insert] insert_text command called. Text length: {}", text.len());
     #[cfg(target_os = "windows")]
@@ -464,9 +476,18 @@ pub fn run() {
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
-                    if event.state() == ShortcutState::Pressed {
-                        if is_dictation_shortcut(shortcut) {
-                            toggle_overlay(app.clone());
+                    if is_dictation_shortcut(shortcut) {
+                        #[cfg(target_os = "macos")]
+                        {
+                            if event.state() == ShortcutState::Pressed {
+                                toggle_overlay(app.clone());
+                            }
+                        }
+                        #[cfg(not(target_os = "macos"))]
+                        {
+                            // On Windows, WH_KEYBOARD_LL in keyboard_hook.rs provides 100% reliable
+                            // OS-level intercept and hardware push-to-talk release detection.
+                            let _ = (app, shortcut, event);
                         }
                     }
                 })
@@ -520,7 +541,7 @@ pub fn run() {
                     let _ = app.global_shortcut().register(shortcut);
                 }
             }
-            #[cfg(not(target_os = "macos"))]
+            #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
             {
                 if let Ok(shortcut) = Shortcut::from_str("Control+Space") {
                     let _ = app.global_shortcut().register(shortcut);
@@ -565,7 +586,9 @@ pub fn run() {
             get_wake_word_enrollment,
             reset_wake_word_enrollment,
             get_wake_word_preroll_audio,
-            set_wake_word_os_suspended
+            set_wake_word_os_suspended,
+            parse_voice_action,
+            execute_voice_action
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")

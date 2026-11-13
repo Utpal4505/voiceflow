@@ -75,6 +75,21 @@ export class WhisperCliAdapter implements ITranscriptionAdapter {
     modelId: string,
     signal?: AbortSignal,
   ): Promise<TranscriptionResult> {
+    // Guard against empty or micro-short audio (< 3200 bytes = 100ms at 16kHz 16-bit mono)
+    // whisper-cli / miniaudio fails with code 11 if fed 0-frame or corrupt empty WAVs
+    if (!audioPcm || audioPcm.byteLength < 3200) {
+      return {
+        text: '',
+        durationMs: 0,
+        metrics: {
+          audioDurationMs: 0,
+          inferenceDurationMs: 0,
+          rtf: 0,
+          modelId,
+        },
+      };
+    }
+
     const binaryPath = this.findBinaryPath();
     const modelPath = this.findModelPath(modelId);
 

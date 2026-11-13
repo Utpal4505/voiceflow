@@ -201,9 +201,16 @@ export function useAudio(onChunk?: (chunk: ArrayBuffer, seq: number, volume?: nu
       return workletNode;
     } catch (err: unknown) {
       destroyPipeline();
-      const message =
+      let message =
         err instanceof Error ? err.message : "Failed to access microphone";
-      console.error("[Audio] Error ensuring audio pipeline:", message);
+      const isSystemDenied =
+        (err instanceof DOMException && err.name === "NotAllowedError") ||
+        message.toLowerCase().includes("permission denied") ||
+        message.toLowerCase().includes("system");
+      if (isSystemDenied) {
+        message = "Microphone permission denied by system. Windows Privacy Settings are blocking desktop apps.";
+      }
+      console.error("[Audio] Error ensuring audio pipeline:", message, err);
       setError(message);
       return null;
     }
@@ -220,20 +227,24 @@ export function useAudio(onChunk?: (chunk: ArrayBuffer, seq: number, volume?: nu
     silentChunksCountRef.current = 0;
   }, []);
 
-  const startRecording = useCallback(async () => {
+  const startRecording = useCallback(async (): Promise<boolean> => {
     setError(null);
     setIsSilent(false);
     silentChunksCountRef.current = 0;
     seqRef.current = 0;
 
     const worklet = await ensurePipeline();
+    if (!worklet) {
+      setIsRecording(false);
+      return false;
+    }
+
     if (audioContextRef.current && audioContextRef.current.state === "suspended") {
       await audioContextRef.current.resume().catch(() => {});
     }
-    if (worklet) {
-      worklet.port.postMessage({ type: "START" });
-      setIsRecording(true);
-    }
+    worklet.port.postMessage({ type: "START" });
+    setIsRecording(true);
+    return true;
   }, [ensurePipeline]);
 
   useEffect(() => {

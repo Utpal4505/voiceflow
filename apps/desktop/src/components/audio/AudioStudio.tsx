@@ -11,8 +11,11 @@ import {
   Square,
   ShieldAlert,
   Keyboard,
+  ExternalLink,
+  RefreshCw,
 } from "lucide-react";
 import { useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import WaveformBars from "../overlay/WaveformBars";
 import { useHistoryStore, HistoryItem } from "../../stores/historyStore";
 import { getShortcutDisplay } from "../../utils/platform";
@@ -209,12 +212,65 @@ export default function AudioStudio({
             </button>
           </div>
 
-          {error && (
-            <div className="rounded-lg bg-red-950/40 border border-red-500/30 px-3 py-2 text-xs text-red-300 flex items-center gap-2">
-              <ShieldAlert className="h-4 w-4 text-red-400 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
+          {error && (() => {
+            const isPermissionError =
+              error.toLowerCase().includes("permission") ||
+              error.toLowerCase().includes("denied") ||
+              error.toLowerCase().includes("system") ||
+              error.toLowerCase().includes("notallowed");
+
+            if (isPermissionError) {
+              return (
+                <div className="rounded-xl bg-red-950/50 border border-red-500/40 p-4 text-xs text-red-200 flex flex-col gap-3 shadow-lg">
+                  <div className="flex items-start gap-2.5">
+                    <ShieldAlert className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
+                    <div className="flex flex-col gap-1">
+                      <span className="font-semibold text-white text-sm">
+                        Microphone Access Blocked by Windows
+                      </span>
+                      <p className="text-red-300/90 text-xs leading-relaxed">
+                        Windows Privacy Settings or your laptop&apos;s mic mute key are preventing VoiceFlow from accessing your microphone.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-black/40 border border-white/[0.06] p-3 text-[11px] text-slate-300 flex flex-col gap-1.5">
+                    <div className="font-medium text-slate-200">Quick Fix in Windows:</div>
+                    <ol className="list-decimal list-inside space-y-0.5 text-slate-400">
+                      <li>Click the button below to open Windows Microphone Settings.</li>
+                      <li>Turn <span className="text-white font-medium">&quot;Microphone access&quot;</span> <span className="text-emerald-400 font-medium">ON</span>.</li>
+                      <li>Turn <span className="text-white font-medium">&quot;Let desktop apps access your microphone&quot;</span> <span className="text-emerald-400 font-medium">ON</span>.</li>
+                      <li>If on Dell or Lenovo, verify your physical mic mute key (F4) is unmuted.</li>
+                    </ol>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <button
+                      onClick={() => invoke("open_microphone_settings")}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-[#FF5722] hover:bg-[#FF6347] text-white rounded-lg font-medium text-xs transition cursor-pointer active:scale-95 shadow-md shadow-[#FF5722]/30"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      <span>Open Windows Microphone Settings</span>
+                    </button>
+                    <button
+                      onClick={onToggleDictation}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/15 text-slate-200 rounded-lg font-medium text-xs transition cursor-pointer active:scale-95 border border-white/10"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                      <span>Retry Microphone</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div className="rounded-lg bg-red-950/40 border border-red-500/30 px-3 py-2 text-xs text-red-300 flex items-center gap-2">
+                <ShieldAlert className="h-4 w-4 text-red-400 shrink-0" />
+                <span>{error}</span>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Recent Transcriptions Strip */}

@@ -326,6 +326,13 @@ export default function OverlayWindow() {
     lastTranscriptLenRef.current = 0;
     setCountdownSeconds(null);
 
+    const started = await startRecording();
+    if (!started) {
+      console.warn("[Overlay] Microphone recording failed to start, aborting session");
+      currentSessionIdRef.current = null;
+      return;
+    }
+
     startSession(sessionId);
 
     // Pillar 1: One-Breath Seamless Dictation - flush trailing pre-roll PCM audio chunk #0
@@ -354,8 +361,6 @@ export default function OverlayWindow() {
       console.warn("[Overlay] Pre-roll audio check completed (none or error):", err);
       seqOffsetRef.current = 0;
     }
-
-    startRecording();
   }, [startSession, isConnected, sendAudioChunk, startRecording]);
 
   const handleStartRecordingRef = useRef(handleStartRecording);
@@ -529,9 +534,16 @@ export default function OverlayWindow() {
                   {transcript?.text ? `Inserting: "${transcript.text}"` : "Done!"}
                 </span>
               ) : sessionState === "error" || sessionError || audioError ? (
-                <span className="text-red-400">
-                  {sessionError || audioError || "Engine error"}
-                </span>
+                <button
+                  type="button"
+                  onClick={() => invoke("open_microphone_settings").catch(() => {})}
+                  className="text-red-400 hover:text-red-300 underline underline-offset-2 cursor-pointer flex items-center gap-1"
+                  title="Click to open Windows Microphone Settings"
+                >
+                  {audioError?.toLowerCase().includes("permission")
+                    ? "Mic blocked: Click to open Windows Settings"
+                    : sessionError || audioError || "Engine error"}
+                </button>
               ) : transcript?.text ? (
                 <span className="text-white font-medium">{transcript.text}</span>
               ) : isSilent ? (

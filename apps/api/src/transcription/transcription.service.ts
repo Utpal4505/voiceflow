@@ -102,6 +102,13 @@ export class TranscriptionService {
     sampleRate = 16000,
     modelId = 'base.en',
   ): Promise<TranscriptionResult> {
+    if (!chunks || chunks.length === 0) {
+      return {
+        text: '',
+        durationMs: 0,
+      };
+    }
+
     // Immediately cancel any in-flight partial or previous final process so whisper-cli is freed
     this.cancelActivePartials(sessionId);
     this.cancelActiveFinal(sessionId);

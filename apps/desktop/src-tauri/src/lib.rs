@@ -278,6 +278,27 @@ fn get_active_context(app: AppHandle) -> AppContext {
 }
 
 #[tauri::command]
+fn open_microphone_settings() -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command;
+        let _ = Command::new("cmd")
+            .args(["/c", "start", "ms-settings:privacy-microphone"])
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+        let _ = Command::new("open")
+            .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 fn get_autostart_status() -> bool {
     autostart::is_autostart_enabled()
 }
@@ -578,6 +599,7 @@ pub fn run() {
             insert_text,
             get_autostart_status,
             set_autostart_status,
+            open_microphone_settings,
             get_wake_word_config,
             set_wake_word_config,
             start_wake_word_calibration,

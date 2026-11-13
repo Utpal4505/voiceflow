@@ -153,7 +153,7 @@ export default function MainWindow() {
   handleFinalizeTranscriptionRef.current = handleFinalizeTranscription;
 
   // Start dictation session
-  const handleStartDictation = useCallback(() => {
+  const handleStartDictation = useCallback(async () => {
     if (currentSessionIdRef.current) {
       resetSession(currentSessionIdRef.current);
     }
@@ -162,8 +162,14 @@ export default function MainWindow() {
     startTimeRef.current = Date.now();
     hasInsertedRef.current = false;
 
+    const started = await startRecordingRef.current();
+    if (!started) {
+      console.warn("[MainWindow] Microphone recording failed to start, aborting session");
+      currentSessionIdRef.current = null;
+      return;
+    }
+
     startSession(sessionId);
-    startRecordingRef.current();
   }, [startSession, resetSession]);
 
   const handleStartDictationRef = useRef(handleStartDictation);

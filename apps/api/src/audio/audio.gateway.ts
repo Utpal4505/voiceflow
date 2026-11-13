@@ -181,6 +181,19 @@ export class AudioGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.activePartials.delete(payload.sessionId);
     this.transcriptionService.cancelActivePartials(payload.sessionId);
 
+    // Guard against 0-chunk or micro-short audio payloads (e.g. mic permission denied, instant click)
+    if (!session.chunks || session.chunks.length === 0 || session.totalBytes < 3200) {
+      this.logger.log(
+        `[Finalize] Session ${session.id} stopped with ${session.chunks?.length ?? 0} chunks (${session.totalBytes} bytes). Gracefully skipping Whisper inference.`,
+      );
+      client.emit('final_transcript', {
+        sessionId: session.id,
+        text: '',
+        isFinal: true,
+      });
+      return;
+    }
+
     try {
       this.logger.log(`[Finalize] Processing final audio (${session.chunks.length} chunks)...`);
       const result = await this.transcriptionService.transcribeFinal(

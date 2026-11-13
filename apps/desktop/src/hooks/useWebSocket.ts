@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
 import { SessionState, ModelInfo, WhisperModelId, HardwareProfile, PerformanceMetrics } from "@voiceflow/contracts";
+import { trackEngineError } from "../lib/telemetry";
 
 export type ConnectionStatus = "connected" | "connecting" | "disconnected" | "error";
 
@@ -54,6 +55,7 @@ export function useWebSocket(serverUrl = "http://localhost:3001") {
     socket.on("connect_error", (err) => {
       console.error("[WebSocket] Connection error:", err.message);
       setStatus("error");
+      trackEngineError({ error: err.message, context: "connect_error" });
     });
 
     socket.on("session_started", (data) => {
@@ -77,6 +79,7 @@ export function useWebSocket(serverUrl = "http://localhost:3001") {
       console.error("[WebSocket] session_error:", data.error);
       setSessionError(data.error);
       setSessionState("error");
+      trackEngineError({ error: data.error, context: "session_error" });
     });
 
     socket.on("session_cancelled", () => {

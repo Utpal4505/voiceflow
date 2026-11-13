@@ -14,7 +14,12 @@ import { useHistoryStore } from "../stores/historyStore";
 import { useVocabularyStore } from "../stores/vocabularyStore";
 import VoiceFlowLogo from "../components/common/VoiceFlowLogo";
 import { Mic, Cpu, History, BookOpen, Loader2, Settings } from "lucide-react";
-import { trackAppLaunched } from "../lib/telemetry";
+import {
+  trackAppLaunched,
+  trackSpeechStarted,
+  trackSpeechPassed,
+  trackSpeechFailed,
+} from "../lib/telemetry";
 
 export type NavTab = "studio" | "models" | "history" | "vocabulary";
 
@@ -74,6 +79,7 @@ export default function MainWindow() {
     isConnected,
     status: wsStatus,
     sessionState,
+    sessionError,
     transcript,
     models,
     downloadProgressMap,
@@ -138,15 +144,31 @@ export default function MainWindow() {
       if (hasInsertedRef.current || !finalText) return;
       hasInsertedRef.current = true;
 
+      const durationMs = Date.now() - (startTimeRef.current || Date.now());
+
       // Add to persistent history
       addHistoryItem({
         text: finalText,
         timestamp: Date.now(),
-        durationMs: Date.now() - (startTimeRef.current || Date.now()),
+        durationMs,
       });
+
+      // Track speech passed (success) in PostHog telemetry
+      const activeM = models.find((m) => m.active);
+      trackSpeechPassed({
+        sessionId: currentSessionIdRef.current || undefined,
+        source: "main_window",
+        audioDurationSec: durationMs / 1000,
+        wordCount: finalText.trim().split(/\s+/).filter(Boolean).length,
+        totalLatencyMs: durationMs,
+        rtf: transcript?.metrics?.rtf,
+        modelId: transcript?.metrics?.modelId || activeM?.id,
+        engineTier: transcript?.metrics?.engineTier,
+      });
+
       console.log("[MainWindow] Transcription finalized and saved to history");
     },
-    [addHistoryItem]
+    [addHistoryItem, models, transcript]
   );
 
   const handleFinalizeTranscriptionRef = useRef(handleFinalizeTranscription);
@@ -162,15 +184,31 @@ export default function MainWindow() {
     startTimeRef.current = Date.now();
     hasInsertedRef.current = false;
 
+    const activeM = models.find((m) => m.active);
+    trackSpeechStarted({
+      sessionId,
+      source: "main_window",
+      modelId: activeM?.id,
+    });
+
     const started = await startRecordingRef.current();
     if (!started) {
       console.warn("[MainWindow] Microphone recording failed to start, aborting session");
+      trackSpeechFailed({
+        sessionId,
+        source: "main_window",
+        stage: "mic_permission",
+        reason: "mic_acquisition_failed",
+        errorMessage: error || "Microphone stream failed to initialize",
+        durationMs: 0,
+        modelId: activeM?.id,
+      });
       currentSessionIdRef.current = null;
       return;
     }
 
     startSession(sessionId);
-  }, [startSession, resetSession]);
+  }, [startSession, resetSession, models, error]);
 
   const handleStartDictationRef = useRef(handleStartDictation);
   handleStartDictationRef.current = handleStartDictation;
@@ -218,8 +256,19 @@ export default function MainWindow() {
       if (!hasInsertedRef.current) {
         handleFinalizeTranscriptionRef.current(transcript.text);
       }
+    } else if (sessionState === "error" && currentSessionIdRef.current) {
+      const activeM = models.find((m) => m.active);
+      trackSpeechFailed({
+        sessionId: currentSessionIdRef.current,
+        source: "main_window",
+        stage: "transcription",
+        reason: "engine_session_error",
+        errorMessage: sessionError || "Engine session error",
+        durationMs: Date.now() - (startTimeRef.current || Date.now()),
+        modelId: activeM?.id,
+      });
     }
-  }, [sessionState, transcript]);
+  }, [sessionState, transcript, sessionError, models]);
 
   // Keyboard shortcut listener within MainWindow (Enter to stop, Esc to cancel during recording)
   useEffect(() => {

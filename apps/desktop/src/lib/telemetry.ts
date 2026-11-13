@@ -3,6 +3,8 @@ import posthog from 'posthog-js';
 const STORAGE_TELEMETRY_ENABLED = 'voiceflow_telemetry_enabled';
 const STORAGE_DISTINCT_ID = 'voiceflow_anonymous_device_id';
 
+export const APP_VERSION = '0.3.0';
+
 const POSTHOG_API_KEY = import.meta.env.VITE_POSTHOG_API_KEY || 'phc_mock_development_key';
 const POSTHOG_HOST = import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com';
 
@@ -52,6 +54,7 @@ export function initTelemetry(): void {
       },
     });
     isInitialized = true;
+    console.log('[Telemetry] PostHog initialized successfully for device:', distinctId);
   } catch (err) {
     console.warn('[Telemetry] Failed to initialize PostHog (non-fatal):', err);
   }
@@ -93,18 +96,163 @@ function trackEvent(eventName: string, properties: Record<string, any> = {}): vo
   if (!isTelemetryEnabled()) return;
 
   try {
+    const osPlatform =
+      typeof navigator !== 'undefined'
+        ? navigator.userAgent.includes('Windows')
+          ? 'windows'
+          : navigator.userAgent.includes('Mac')
+          ? 'macos'
+          : navigator.userAgent.includes('Linux')
+          ? 'linux'
+          : 'desktop'
+        : 'unknown';
+
     posthog.capture(eventName, {
-      app_version: '0.1.0',
-      platform: 'desktop_windows',
+      app_version: APP_VERSION,
+      platform: osPlatform,
+      timestamp: new Date().toISOString(),
       ...properties,
     });
-  } catch {
-    // Fail silently so telemetry never interferes with voice dictation or app UI
+  } catch (err) {
+    console.warn('[Telemetry] Error capturing event:', eventName, err);
   }
 }
 
 // ==========================================
-// Strongly-Typed Telemetry Event Trackers
+// Strongly-Typed Speech & Error Telemetry
+// ==========================================
+
+export type SpeechSource =
+  | 'overlay_shortcut'
+  | 'overlay_wake_word'
+  | 'main_window'
+  | 'api_test';
+
+export type SpeechFailureStage =
+  | 'mic_permission'
+  | 'mic_hardware'
+  | 'engine_connection'
+  | 'streaming'
+  | 'transcription'
+  | 'insertion'
+  | 'timeout'
+  | 'unknown';
+
+/**
+ * 1. Track when speech dictation begins.
+ */
+export function trackSpeechStarted(params: {
+  sessionId: string;
+  source: SpeechSource;
+  modelId?: string;
+}): void {
+  trackEvent('speech_started', {
+    session_id: params.sessionId,
+    source: params.source,
+    model_id: params.modelId || 'base',
+    status: 'started',
+  });
+}
+
+/**
+ * 2. Track when speech dictation completes successfully (passed).
+ */
+export function trackSpeechPassed(params: {
+  sessionId?: string;
+  source: SpeechSource;
+  audioDurationSec: number;
+  wordCount: number;
+  totalLatencyMs: number;
+  rtf?: number;
+  modelId?: string;
+  engineTier?: string;
+  actionType?: string;
+}): void {
+  const payload = {
+    session_id: params.sessionId,
+    source: params.source,
+    status: 'passed',
+    audio_duration_sec: Math.round(params.audioDurationSec * 10) / 10,
+    words_count: params.wordCount,
+    total_latency_ms: Math.round(params.totalLatencyMs),
+    rtf: params.rtf,
+    model_id: params.modelId,
+    engine_tier: params.engineTier,
+    action_type: params.actionType,
+  };
+
+  // Primary funnel event
+  trackEvent('speech_passed', payload);
+
+  // Backward-compatible alias
+  trackEvent('dictation_completed', payload);
+}
+
+/**
+ * 3. Track when speech dictation fails with full contextual breakdown.
+ */
+export function trackSpeechFailed(params: {
+  sessionId?: string;
+  source: SpeechSource;
+  stage: SpeechFailureStage;
+  reason: string;
+  errorMessage?: string;
+  durationMs?: number;
+  modelId?: string;
+}): void {
+  trackEvent('speech_failed', {
+    session_id: params.sessionId,
+    source: params.source,
+    status: 'failed',
+    failure_stage: params.stage,
+    failure_reason: params.reason,
+    error_message: params.errorMessage || params.reason,
+    duration_ms: params.durationMs ? Math.round(params.durationMs) : 0,
+    model_id: params.modelId,
+  });
+}
+
+/**
+ * 4. Specific microphone hardware or permission error.
+ */
+export function trackMicrophoneError(params: {
+  category: 'permission_denied' | 'device_not_found' | 'not_readable' | 'overconstrained' | 'unknown';
+  rawError: string;
+  deviceLabel?: string;
+}): void {
+  trackEvent('microphone_error', {
+    mic_error_category: params.category,
+    raw_error: params.rawError,
+    device_label: params.deviceLabel,
+  });
+}
+
+/**
+ * 5. Track when the user clicks the 1-click button to open Windows/Mac Microphone settings.
+ */
+export function trackMicrophoneSettingsOpened(params: {
+  source: 'main_window' | 'overlay';
+}): void {
+  trackEvent('microphone_settings_opened', {
+    ui_source: params.source,
+  });
+}
+
+/**
+ * 6. Track Engine / WebSocket disconnections or failures.
+ */
+export function trackEngineError(params: {
+  error: string;
+  context?: string;
+}): void {
+  trackEvent('engine_error', {
+    engine_error: params.error,
+    context: params.context || 'websocket',
+  });
+}
+
+// ==========================================
+// Legacy / General App Events
 // ==========================================
 
 export function trackAppLaunched(metadata?: {
@@ -128,13 +276,14 @@ export function trackDictationCompleted(params: {
   modelId?: string;
   engineTier?: string;
 }): void {
-  trackEvent('dictation_completed', {
-    audio_duration_sec: Math.round(params.audioDurationSec * 10) / 10,
-    words_count: params.wordCount,
-    total_latency_ms: Math.round(params.totalLatencyMs),
+  trackSpeechPassed({
+    source: 'overlay_shortcut',
+    audioDurationSec: params.audioDurationSec,
+    wordCount: params.wordCount,
+    totalLatencyMs: params.totalLatencyMs,
     rtf: params.rtf,
-    model_id: params.modelId,
-    engine_tier: params.engineTier,
+    modelId: params.modelId,
+    engineTier: params.engineTier,
   });
 }
 

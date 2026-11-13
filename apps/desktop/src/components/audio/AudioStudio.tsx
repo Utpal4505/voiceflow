@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { trackMicrophoneSettingsOpened } from "../../lib/telemetry";
 import WaveformBars from "../overlay/WaveformBars";
 import { useHistoryStore, HistoryItem } from "../../stores/historyStore";
 import { getShortcutDisplay } from "../../utils/platform";
@@ -246,7 +247,10 @@ export default function AudioStudio({
 
                   <div className="flex flex-wrap items-center gap-2 pt-1">
                     <button
-                      onClick={() => invoke("open_microphone_settings")}
+                      onClick={() => {
+                        trackMicrophoneSettingsOpened({ source: "main_window" });
+                        invoke("open_microphone_settings");
+                      }}
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-[#FF5722] hover:bg-[#FF6347] text-white rounded-lg font-medium text-xs transition cursor-pointer active:scale-95 shadow-md shadow-[#FF5722]/30"
                     >
                       <ExternalLink className="h-3.5 w-3.5" />

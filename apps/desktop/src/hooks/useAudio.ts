@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSettingsStore } from "../stores/settingsStore";
+import { trackMicrophoneError } from "../lib/telemetry";
 
 export interface AudioCaptureState {
   isRecording: boolean;
@@ -203,15 +204,30 @@ export function useAudio(onChunk?: (chunk: ArrayBuffer, seq: number, volume?: nu
       destroyPipeline();
       let message =
         err instanceof Error ? err.message : "Failed to access microphone";
+      let errorCategory: "permission_denied" | "device_not_found" | "not_readable" | "unknown" = "unknown";
+
       const isSystemDenied =
         (err instanceof DOMException && err.name === "NotAllowedError") ||
         message.toLowerCase().includes("permission denied") ||
         message.toLowerCase().includes("system");
+
       if (isSystemDenied) {
         message = "Microphone permission denied by system. Windows Privacy Settings are blocking desktop apps.";
+        errorCategory = "permission_denied";
+      } else if (err instanceof DOMException && (err.name === "NotFoundError" || err.name === "DevicesNotFoundError")) {
+        errorCategory = "device_not_found";
+      } else if (err instanceof DOMException && (err.name === "NotReadableError" || err.name === "TrackStartError")) {
+        errorCategory = "not_readable";
       }
+
       console.error("[Audio] Error ensuring audio pipeline:", message, err);
       setError(message);
+
+      trackMicrophoneError({
+        category: errorCategory,
+        rawError: err instanceof Error ? err.message : String(err),
+      });
+
       return null;
     }
   }, [selectedDeviceId, destroyPipeline]);

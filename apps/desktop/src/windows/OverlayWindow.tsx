@@ -8,7 +8,14 @@ import { useHistoryStore } from "../stores/historyStore";
 import { useSettingsStore } from "../stores/settingsStore";
 import VoiceFlowLogo from "../components/common/VoiceFlowLogo";
 import { Mic, Check, AlertCircle, Loader2, Globe, Search, Sparkles } from "lucide-react";
-import { trackDictationCompleted, trackInsertionFailed } from "../lib/telemetry";
+import {
+  trackSpeechStarted,
+  trackSpeechPassed,
+  trackSpeechFailed,
+  trackInsertionFailed,
+  trackMicrophoneSettingsOpened,
+  SpeechSource,
+} from "../lib/telemetry";
 import { audioChime } from "../utils/audioChime";
 
 const MAX_RECORDING_MS = 180_000;
@@ -17,6 +24,7 @@ export default function OverlayWindow() {
   const currentSessionIdRef = useRef<string | null>(null);
   const startTimeRef = useRef<number>(0);
   const hasInsertedRef = useRef(false);
+  const isWakeWordRef = useRef(false);
   const [executingAction, setExecutingAction] = useState<{
     label: string;
     category: "app" | "web" | "search";
@@ -268,13 +276,16 @@ export default function OverlayWindow() {
         ? transcript.metrics.audioDurationMs / 1000
         : totalLatencyMs / 1000;
 
+      const source: SpeechSource = isWakeWordRef.current ? "overlay_wake_word" : "overlay_shortcut";
       try {
         console.log("[Overlay] Invoking Tauri 'insert_text' command...");
         await invoke("insert_text", { text: textToInsert });
         console.log("[Overlay] 'insert_text' invocation resolved successfully");
 
-        // Telemetry: Record successful dictation metrics (Metadata only, NO text/audio)
-        trackDictationCompleted({
+        // Telemetry: Record successful dictation metrics (Passed)
+        trackSpeechPassed({
+          sessionId: currentSessionIdRef.current || undefined,
+          source,
           audioDurationSec,
           wordCount,
           totalLatencyMs,
@@ -284,6 +295,14 @@ export default function OverlayWindow() {
         });
       } catch (err) {
         console.error("[Overlay] 'insert_text' invocation failed:", err);
+        trackSpeechFailed({
+          sessionId: currentSessionIdRef.current || undefined,
+          source,
+          stage: "insertion",
+          reason: "insert_text_failed",
+          errorMessage: err instanceof Error ? err.message : String(err),
+          durationMs: totalLatencyMs,
+        });
         trackInsertionFailed({
           reason: err instanceof Error ? err.message : String(err),
           durationMs: totalLatencyMs,
@@ -326,9 +345,23 @@ export default function OverlayWindow() {
     lastTranscriptLenRef.current = 0;
     setCountdownSeconds(null);
 
+    const source: SpeechSource = isWakeWordRef.current ? "overlay_wake_word" : "overlay_shortcut";
+    trackSpeechStarted({
+      sessionId,
+      source,
+    });
+
     const started = await startRecording();
     if (!started) {
       console.warn("[Overlay] Microphone recording failed to start, aborting session");
+      trackSpeechFailed({
+        sessionId,
+        source,
+        stage: "mic_permission",
+        reason: "mic_acquisition_failed",
+        errorMessage: audioError || "Microphone stream failed to initialize",
+        durationMs: 0,
+      });
       currentSessionIdRef.current = null;
       return;
     }
@@ -383,6 +416,16 @@ export default function OverlayWindow() {
         }, 1000);
         return () => clearTimeout(timer);
       }
+    } else if (sessionState === "error" && currentSessionIdRef.current) {
+      const source: SpeechSource = isWakeWordRef.current ? "overlay_wake_word" : "overlay_shortcut";
+      trackSpeechFailed({
+        sessionId: currentSessionIdRef.current,
+        source,
+        stage: "transcription",
+        reason: "engine_session_error",
+        errorMessage: sessionError || "Engine session error",
+        durationMs: Date.now() - (startTimeRef.current || Date.now()),
+      });
     }
   }, [sessionState, transcript, handleInsert, handleClose]);
 
@@ -413,6 +456,7 @@ export default function OverlayWindow() {
       try {
         unlistenWakeWord = await listen<string>("wake-word:triggered", async (event) => {
           console.log("[Overlay] Wake word triggered by Rust listener:", event.payload);
+          isWakeWordRef.current = true;
           audioChime.playWakeChime();
           try {
             const preroll = await invoke<number[] | null>("get_wake_word_preroll_audio");
@@ -427,6 +471,7 @@ export default function OverlayWindow() {
 
         unlistenShow = await listen("overlay:show", () => {
           console.log("[Overlay] Event received: overlay:show");
+          isWakeWordRef.current = false;
           handleStartRecordingRef.current();
         });
 
@@ -536,7 +581,10 @@ export default function OverlayWindow() {
               ) : sessionState === "error" || sessionError || audioError ? (
                 <button
                   type="button"
-                  onClick={() => invoke("open_microphone_settings").catch(() => {})}
+                  onClick={() => {
+                    trackMicrophoneSettingsOpened({ source: "overlay" });
+                    invoke("open_microphone_settings").catch(() => {});
+                  }}
                   className="text-red-400 hover:text-red-300 underline underline-offset-2 cursor-pointer flex items-center gap-1"
                   title="Click to open Windows Microphone Settings"
                 >

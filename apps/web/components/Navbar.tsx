@@ -6,6 +6,7 @@ import { Menu, X } from "lucide-react";
 import { triggerDownloadToast } from "./DownloadToast";
 import { VoiceFlowLogo } from "./VoiceFlowLogo";
 import { WindowsIcon, AppleIcon, DOWNLOAD_URLS, useDetectedOS } from "./PlatformIcons";
+import { trackDownloadClicked, trackEvent } from "../lib/analytics";
 
 export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -67,6 +68,7 @@ export default function Navbar() {
                 <a
                   key={link.label}
                   href={link.href}
+                  onClick={() => trackEvent("nav_link_clicked", { label: link.label, href: link.href })}
                   onMouseEnter={() => setHoveredIdx(idx)}
                   className="relative px-3.5 py-1.5 text-xs font-medium transition-colors font-sans"
                 >
@@ -94,7 +96,14 @@ export default function Navbar() {
             <motion.a
               href={detectedOS === "mac" ? DOWNLOAD_URLS.mac : DOWNLOAD_URLS.windows}
               download
-              onClick={() => triggerDownloadToast(detectedOS)}
+              onClick={() => {
+                triggerDownloadToast(detectedOS);
+                trackDownloadClicked({
+                  platform: detectedOS,
+                  location: "navbar",
+                  url: detectedOS === "mac" ? DOWNLOAD_URLS.mac : DOWNLOAD_URLS.windows,
+                });
+              }}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               className="flex items-center gap-2 rounded-xl bg-white hover:bg-slate-100 px-3.5 py-1.5 text-xs font-semibold text-[#111827] shadow-[0_2px_12px_rgba(255,255,255,0.12)] transition-all cursor-pointer font-sans"
@@ -115,7 +124,14 @@ export default function Navbar() {
             <a
               href={detectedOS === "mac" ? DOWNLOAD_URLS.mac : DOWNLOAD_URLS.windows}
               download
-              onClick={() => triggerDownloadToast(detectedOS)}
+              onClick={() => {
+                triggerDownloadToast(detectedOS);
+                trackDownloadClicked({
+                  platform: detectedOS,
+                  location: "mobile_header",
+                  url: detectedOS === "mac" ? DOWNLOAD_URLS.mac : DOWNLOAD_URLS.windows,
+                });
+              }}
               className="flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1 text-xs font-bold text-[#111827]"
             >
               {detectedOS === "mac" ? (
@@ -149,7 +165,10 @@ export default function Navbar() {
                 <a
                   key={link.label}
                   href={link.href}
-                  onClick={() => setMobileMenuOpen(false)}
+                  onClick={() => {
+                    trackEvent("nav_link_clicked", { label: link.label, href: link.href, source: "mobile_drawer" });
+                    setMobileMenuOpen(false);
+                  }}
                   className="block px-3 py-2 rounded-xl text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5 transition-colors font-sans"
                 >
                   {link.label}
@@ -161,6 +180,11 @@ export default function Navbar() {
                   download
                   onClick={() => {
                     triggerDownloadToast(detectedOS);
+                    trackDownloadClicked({
+                      platform: detectedOS,
+                      location: "mobile_drawer",
+                      url: detectedOS === "mac" ? DOWNLOAD_URLS.mac : DOWNLOAD_URLS.windows,
+                    });
                     setMobileMenuOpen(false);
                   }}
                   className="flex items-center justify-center gap-2 rounded-xl bg-white py-2.5 text-xs font-bold text-[#111827] shadow-sm font-sans"
@@ -181,7 +205,13 @@ export default function Navbar() {
                     href={detectedOS === "mac" ? DOWNLOAD_URLS.windows : DOWNLOAD_URLS.mac}
                     download
                     onClick={() => {
-                      triggerDownloadToast(detectedOS === "mac" ? "windows" : "mac");
+                      const altOS = detectedOS === "mac" ? "windows" : "mac";
+                      triggerDownloadToast(altOS);
+                      trackDownloadClicked({
+                        platform: altOS,
+                        location: "mobile_drawer",
+                        url: altOS === "mac" ? DOWNLOAD_URLS.mac : DOWNLOAD_URLS.windows,
+                      });
                       setMobileMenuOpen(false);
                     }}
                     className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-white underline underline-offset-2 decoration-white/20"

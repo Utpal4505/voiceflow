@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { PostHogProvider } from "../providers/PostHogProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -120,7 +121,7 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen bg-[#212121] font-sans text-white antialiased selection:bg-[#FF5722]/25 selection:text-[#FF5722]">
-        {children}
+        <PostHogProvider>{children}</PostHogProvider>
       </body>
     </html>
   );

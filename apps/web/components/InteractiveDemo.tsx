@@ -18,6 +18,11 @@ import {
   Star,
   Share2,
 } from "lucide-react";
+import {
+  trackDemoTabChanged,
+  trackDemoDictationTriggered,
+  trackHotkeyTested,
+} from "../lib/analytics";
 
 // ============================================================================
 // AUTHENTIC BRAND & OS SVGS
@@ -191,19 +196,22 @@ export default function InteractiveDemo() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && (e.code === "Space" || e.key === " ")) {
         e.preventDefault();
+        trackHotkeyTested("keyboard_shortcut");
+        trackDemoDictationTriggered(activeTab, "hotkey");
         triggerManualDictation();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [triggerManualDictation]);
+  }, [triggerManualDictation, activeTab]);
 
   // Manual Tab Click
   const handleSwitchTab = (tabId: "vscode" | "slack" | "docs") => {
     setIsAutoTour(false);
     if (idleResumeTimerRef.current) clearTimeout(idleResumeTimerRef.current);
 
+    trackDemoTabChanged(tabId);
     setActiveTab(tabId);
     setStep("standby");
     setHudText("");
@@ -336,7 +344,11 @@ export default function InteractiveDemo() {
           {/* Tactile Hotkey Test Button (Calm by default, highlights only on user press) */}
           <button
             type="button"
-            onClick={triggerManualDictation}
+            onClick={() => {
+              trackHotkeyTested("header_pill");
+              trackDemoDictationTriggered(activeTab, "button");
+              triggerManualDictation();
+            }}
             className={`group inline-flex items-center gap-2 rounded-full border px-3.5 py-1 text-xs font-semibold shadow-md transition-all cursor-pointer ${
               userPressedHotkey
                 ? "bg-[#FF5722] border-[#FF5722] text-white scale-95 shadow-[0_0_15px_rgba(255,87,34,0.5)]"
@@ -859,7 +871,10 @@ export default function InteractiveDemo() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={triggerManualDictation}
+              onClick={() => {
+                trackDemoDictationTriggered(activeTab, "button");
+                triggerManualDictation();
+              }}
               className="flex items-center gap-1.5 rounded-md border border-white/10 bg-white/5 hover:bg-white/10 hover:text-white px-2.5 py-1 text-slate-300 transition-colors cursor-pointer text-[11px] font-medium"
               title="Test manual dictation in active tab"
             >

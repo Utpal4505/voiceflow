@@ -4,6 +4,7 @@ import React from "react";
 import { motion } from "framer-motion";
 import { triggerDownloadToast } from "./DownloadToast";
 import { WindowsIcon, AppleIcon, DOWNLOAD_URLS, useDetectedOS } from "./PlatformIcons";
+import { trackDownloadClicked } from "../lib/analytics";
 
 export default function Hero() {
   const detectedOS = useDetectedOS();
@@ -70,7 +71,14 @@ export default function Hero() {
           <motion.a
             href={detectedOS === "mac" ? DOWNLOAD_URLS.mac : DOWNLOAD_URLS.windows}
             download
-            onClick={() => triggerDownloadToast(detectedOS)}
+            onClick={() => {
+              triggerDownloadToast(detectedOS);
+              trackDownloadClicked({
+                platform: detectedOS,
+                location: "hero",
+                url: detectedOS === "mac" ? DOWNLOAD_URLS.mac : DOWNLOAD_URLS.windows,
+              });
+            }}
             whileHover={{ scale: 1.02, y: -1 }}
             whileTap={{ scale: 0.98 }}
             className="group flex items-center justify-center gap-3 rounded-2xl bg-white hover:bg-slate-100 px-8 sm:px-10 py-4 text-base sm:text-lg font-bold text-[#111827] shadow-[0_8px_30px_rgba(255,255,255,0.18)] transition-all cursor-pointer ring-1 ring-white/20"
@@ -94,7 +102,15 @@ export default function Hero() {
             <a
               href={detectedOS === "mac" ? DOWNLOAD_URLS.windows : DOWNLOAD_URLS.mac}
               download
-              onClick={() => triggerDownloadToast(detectedOS === "mac" ? "windows" : "mac")}
+              onClick={() => {
+                const altOS = detectedOS === "mac" ? "windows" : "mac";
+                triggerDownloadToast(altOS);
+                trackDownloadClicked({
+                  platform: altOS,
+                  location: "hero",
+                  url: altOS === "mac" ? DOWNLOAD_URLS.mac : DOWNLOAD_URLS.windows,
+                });
+              }}
               className="inline-flex items-center gap-1 text-slate-300 hover:text-white underline underline-offset-4 decoration-white/30 hover:decoration-white transition-colors cursor-pointer font-medium"
             >
               {detectedOS === "mac" ? (

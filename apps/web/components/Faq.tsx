@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, HelpCircle } from "lucide-react";
+import { trackFaqToggled } from "../lib/analytics";
 
 const FAQS = [
   {
@@ -35,7 +36,11 @@ export default function Faq() {
   const [openIndex, setOpenIndex] = useState<number | null>(0);
 
   const toggle = (i: number) => {
-    setOpenIndex(openIndex === i ? null : i);
+    const isOpening = openIndex !== i;
+    setOpenIndex(isOpening ? i : null);
+    if (isOpening && FAQS[i]) {
+      trackFaqToggled(FAQS[i].q, true);
+    }
   };
 
   return (

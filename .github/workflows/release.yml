@@ -1,6 +1,9 @@
 name: Release VoiceFlow
 
 on:
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
       platform:
@@ -93,15 +96,12 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag_name=v$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Publish macOS DMG to Public Releases Repo
+      - name: Publish macOS DMG to GitHub Releases
         uses: softprops/action-gh-release@v2
-        continue-on-error: true
         with:
-          token: ${{ secrets.PUBLIC_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
-          repository: Utpal4505/voiceflow-releases
           tag_name: ${{ steps.pkg_version.outputs.tag_name }}
           name: VoiceFlow v${{ steps.pkg_version.outputs.version }}
-          generate_release_notes: false
+          generate_release_notes: true
           draft: false
           prerelease: false
           files: |
@@ -163,15 +163,12 @@ jobs:
             apps/desktop/src-tauri/target/release/bundle/nsis/VoiceFlow_*_x64-setup.exe
             apps/desktop/src-tauri/target/release/bundle/nsis/VoiceFlow_*_x64-setup.zip
 
-      - name: Publish Windows Assets to Public Releases Repo
+      - name: Publish Windows Assets to GitHub Releases
         uses: softprops/action-gh-release@v2
-        continue-on-error: true
         with:
-          token: ${{ secrets.PUBLIC_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
-          repository: Utpal4505/voiceflow-releases
           tag_name: ${{ steps.pkg_version.outputs.tag_name }}
           name: VoiceFlow v${{ steps.pkg_version.outputs.version }}
-          generate_release_notes: false
+          generate_release_notes: true
           draft: false
           prerelease: false
           files: |

@@ -30,6 +30,6 @@ export function AppleIcon({ className = "h-4 w-4" }: { className?: string }) {
 }
 
 export const DOWNLOAD_URLS = {
-  windows: "https://github.com/Utpal4505/voiceflow-releases/releases/latest/download/VoiceFlow-Setup.exe",
-  mac: "https://github.com/Utpal4505/voiceflow-releases/releases/latest/download/VoiceFlow.dmg",
+  windows: "https://github.com/Utpal4505/voiceflow/releases/latest/download/VoiceFlow-Setup.exe",
+  mac: "https://github.com/Utpal4505/voiceflow/releases/latest/download/VoiceFlow.dmg",
 };

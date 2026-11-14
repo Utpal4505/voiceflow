@@ -156,11 +156,11 @@ export default function Footer() {
               FAQ
             </a>
             <a
-              href="https://github.com/Utpal4505/voiceflow-releases/releases"
+              href="https://github.com/Utpal4505/voiceflow/releases"
               target="_blank"
               rel="noopener noreferrer"
               onClick={() =>
-                trackExternalLinkClicked("Releases", "https://github.com/Utpal4505/voiceflow-releases/releases")
+                trackExternalLinkClicked("Releases", "https://github.com/Utpal4505/voiceflow/releases")
               }
               className="hover:text-white transition-colors"
             >

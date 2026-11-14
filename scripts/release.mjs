@@ -162,11 +162,11 @@ if (fs.existsSync(sigPath)) {
     platforms: {
       "windows-x86_64": {
         signature: signature,
-        url: `https://github.com/Utpal4505/voiceflow-releases/releases/download/v${version}/VoiceFlow_${version}_x64-setup.exe`,
+        url: `https://github.com/Utpal4505/voiceflow/releases/download/v${version}/VoiceFlow_${version}_x64-setup.exe`,
       },
       "windows-x86_64-nsis": {
         signature: signature,
-        url: `https://github.com/Utpal4505/voiceflow-releases/releases/download/v${version}/VoiceFlow_${version}_x64-setup.exe`,
+        url: `https://github.com/Utpal4505/voiceflow/releases/download/v${version}/VoiceFlow_${version}_x64-setup.exe`,
       },
     },
   };

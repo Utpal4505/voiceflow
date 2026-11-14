@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Utpal4505/voiceflow-releases/releases/latest"><img src="https://img.shields.io/github/v/release/Utpal4505/voiceflow-releases?color=514BFA&label=Release&style=flat-square" alt="Latest Release" /></a>
-  <a href="https://github.com/Utpal4505/voiceflow-releases/releases"><img src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20(Apple%20Silicon)-0078D6?style=flat-square&logo=apple" alt="Platform: Windows | macOS" /></a>
+  <a href="https://github.com/Utpal4505/voiceflow/releases/latest"><img src="https://img.shields.io/github/v/release/Utpal4505/voiceflow?color=514BFA&label=Release&style=flat-square" alt="Latest Release" /></a>
+  <a href="https://github.com/Utpal4505/voiceflow/releases"><img src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20(Apple%20Silicon)-0078D6?style=flat-square&logo=apple" alt="Platform: Windows | macOS" /></a>
   <a href="https://github.com/Utpal4505/voiceflow/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-emerald?style=flat-square" alt="MIT License" /></a>
   <a href="https://github.com/ggerganov/whisper.cpp"><img src="https://img.shields.io/badge/Engine-whisper.cpp%20(Metal%2FAVX2%2FCUDA)-orange?style=flat-square" alt="Engine: whisper.cpp" /></a>
   <a href="https://tauri.app"><img src="https://img.shields.io/badge/Desktop-Tauri%20v2-24C8D8?style=flat-square&logo=tauri" alt="Tauri v2" /></a>
@@ -64,9 +64,9 @@ Ready to run VoiceFlow immediately? Grab the latest release for your platform:
 
 | Package | Format | Platform | Description |
 | :--- | :--- | :--- | :--- |
-| **[VoiceFlow for Mac (Apple Silicon)](https://github.com/Utpal4505/voiceflow-releases/releases/latest/download/VoiceFlow.dmg)** | `.dmg` | macOS (M1/M2/M3/M4) | **Recommended for Mac.** Hardware Metal GPU acceleration. |
-| **[VoiceFlow Installer](https://github.com/Utpal4505/voiceflow-releases/releases/latest/download/VoiceFlow-Setup.exe)** | `.exe` (NSIS) | Windows 10/11 | **Recommended for Windows.** Installer with auto-updater. |
-| **[VoiceFlow Portable](https://github.com/Utpal4505/voiceflow-releases/releases/latest/download/VoiceFlow_0.3.0_x64-setup.zip)** | `.zip` | Windows 10/11 | Portable archive. Extract and run anywhere without admin rights. |
+| **[VoiceFlow for Mac (Apple Silicon)](https://github.com/Utpal4505/voiceflow/releases/latest/download/VoiceFlow.dmg)** | `.dmg` | macOS (M1/M2/M3/M4) | **Recommended for Mac.** Hardware Metal GPU acceleration. |
+| **[VoiceFlow Installer](https://github.com/Utpal4505/voiceflow/releases/latest/download/VoiceFlow-Setup.exe)** | `.exe` (NSIS) | Windows 10/11 | **Recommended for Windows.** Installer with auto-updater. |
+| **[VoiceFlow Portable](https://github.com/Utpal4505/voiceflow/releases/latest/download/VoiceFlow_0.3.1_x64-setup.zip)** | `.zip` | Windows 10/11 | Portable archive. Extract and run anywhere without admin rights. |
 
 > [!NOTE]
 > **Windows SmartScreen Note**: Because VoiceFlow is an indie open-source application and has not purchased a \$500/yr enterprise EV code signing certificate, Windows Defender SmartScreen may show an _"Unrecognized app"_ prompt on first launch. Click **"More info"** &rarr; **"Run anyway"**. VoiceFlow binaries are 100% open-source, reproducible, and verifiable.

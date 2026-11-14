@@ -84,7 +84,7 @@ const softwareApplicationSchema = {
   softwareVersion: "0.1.0",
   fileSize: "25MB - 35MB",
   downloadUrl:
-    "https://github.com/Utpal4505/voiceflow-releases/releases/latest/download/VoiceFlow-Setup.exe",
+    "https://github.com/Utpal4505/voiceflow/releases/latest/download/VoiceFlow-Setup.exe",
   featureList: [
     "100% offline speech recognition",
     "On-device CPU AVX2 acceleration with OpenAI Whisper",

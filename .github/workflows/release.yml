@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   build-macos:
-    if: ${{ github.event.inputs.platform == 'all' || github.event.inputs.platform == 'macos' || github.event_name != 'workflow_dispatch' }}
+    if: false # Paused until macOS Apple Silicon testing is finalized
     runs-on: macos-latest
 
     steps:
@@ -142,10 +142,25 @@ jobs:
       - name: Build All Monorepo Packages
         run: pnpm build
 
+      - name: Setup Bundled Resources (Binaries & Backend)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path apps/desktop/src-tauri/resources/bin
+          New-Item -ItemType Directory -Force -Path apps/desktop/src-tauri/resources/server
+          
+          # Download standalone portable node.exe (v20.18.0 x64)
+          Invoke-WebRequest -Uri "https://nodejs.org/dist/v20.18.0/win-x64/node.exe" -OutFile "apps/desktop/src-tauri/resources/bin/node.exe"
+          
+          # Copy whisper-cli.exe and ggml runtime DLLs
+          Copy-Item -Path "bin/*" -Destination "apps/desktop/src-tauri/resources/bin/" -Force
+          
+          # Bundle NestJS server into self-contained bundle
+          pnpm dlx @vercel/ncc build apps/api/dist/main.js -o apps/desktop/src-tauri/resources/server -m
+
       - name: Build Signed Desktop Application
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-        run: pnpm --filter @voiceflow/desktop tauri build
+        run: pnpm --filter @voiceflow/desktop tauri build --bundles nsis
 
       - name: Read Current Version
         id: pkg_version

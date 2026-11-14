@@ -3,7 +3,7 @@ import posthog from 'posthog-js';
 const STORAGE_TELEMETRY_ENABLED = 'voiceflow_telemetry_enabled';
 const STORAGE_DISTINCT_ID = 'voiceflow_anonymous_device_id';
 
-export const APP_VERSION = '0.3.0';
+export const APP_VERSION = '0.3.1';
 
 const POSTHOG_API_KEY = import.meta.env.VITE_POSTHOG_API_KEY || 'phc_mock_development_key';
 const POSTHOG_HOST = import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com';

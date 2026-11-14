@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { Check, ShieldCheck, X } from "lucide-react";
+import { trackEvent } from "../lib/analytics";
 
 function WindowsLogo({ className = "w-4 h-4" }: { className?: string }) {
   return (
@@ -57,7 +58,10 @@ export default function SmartScreenGuide() {
                 {/* Step 1 Selector */}
                 <button
                   type="button"
-                  onClick={() => setActiveStep(1)}
+                  onClick={() => {
+                    setActiveStep(1);
+                    trackEvent("smartscreen_step_viewed", { step: 1 });
+                  }}
                   className={`w-full text-left flex items-start gap-3.5 rounded-2xl p-4 border transition-all cursor-pointer ${
                     activeStep === 1
                       ? "bg-white/10 border-blue-400/40 text-white shadow-sm"
@@ -82,7 +86,10 @@ export default function SmartScreenGuide() {
                 {/* Step 2 Selector */}
                 <button
                   type="button"
-                  onClick={() => setActiveStep(2)}
+                  onClick={() => {
+                    setActiveStep(2);
+                    trackEvent("smartscreen_step_viewed", { step: 2 });
+                  }}
                   className={`w-full text-left flex items-start gap-3.5 rounded-2xl p-4 border transition-all cursor-pointer ${
                     activeStep === 2
                       ? "bg-white/10 border-emerald-400/40 text-white shadow-sm"

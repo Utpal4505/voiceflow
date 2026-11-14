@@ -6,6 +6,7 @@ import { ArrowRight, ShieldCheck } from "lucide-react";
 import { triggerDownloadToast } from "./DownloadToast";
 import { VoiceFlowLogo } from "./VoiceFlowLogo";
 import { WindowsIcon, AppleIcon, DOWNLOAD_URLS, useDetectedOS } from "./PlatformIcons";
+import { trackDownloadClicked, trackEvent, trackExternalLinkClicked } from "../lib/analytics";
 
 export default function Footer() {
   const detectedOS = useDetectedOS();
@@ -44,7 +45,14 @@ export default function Footer() {
               <motion.a
                 href={detectedOS === "mac" ? DOWNLOAD_URLS.mac : DOWNLOAD_URLS.windows}
                 download
-                onClick={() => triggerDownloadToast(detectedOS)}
+                onClick={() => {
+                  triggerDownloadToast(detectedOS);
+                  trackDownloadClicked({
+                    platform: detectedOS,
+                    location: "footer",
+                    url: detectedOS === "mac" ? DOWNLOAD_URLS.mac : DOWNLOAD_URLS.windows,
+                  });
+                }}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 className="flex items-center justify-center gap-2.5 rounded-2xl bg-white hover:bg-slate-100 px-8 py-4 text-sm sm:text-base font-bold text-[#111827] shadow-xl transition-all cursor-pointer ring-1 ring-white/20"
@@ -67,7 +75,15 @@ export default function Footer() {
                 <a
                   href={detectedOS === "mac" ? DOWNLOAD_URLS.windows : DOWNLOAD_URLS.mac}
                   download
-                  onClick={() => triggerDownloadToast(detectedOS === "mac" ? "windows" : "mac")}
+                  onClick={() => {
+                    const altOS = detectedOS === "mac" ? "windows" : "mac";
+                    triggerDownloadToast(altOS);
+                    trackDownloadClicked({
+                      platform: altOS,
+                      location: "footer",
+                      url: altOS === "mac" ? DOWNLOAD_URLS.mac : DOWNLOAD_URLS.windows,
+                    });
+                  }}
                   className="inline-flex items-center gap-1 text-slate-300 hover:text-white underline underline-offset-4 decoration-white/30 hover:decoration-white transition-colors cursor-pointer font-medium"
                 >
                   {detectedOS === "mac" ? (
@@ -104,25 +120,48 @@ export default function Footer() {
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-6 text-xs text-slate-400 font-medium">
-            <a href="#features" className="hover:text-white transition-colors">
+            <a
+              href="#features"
+              onClick={() => trackEvent("footer_link_clicked", { label: "Features" })}
+              className="hover:text-white transition-colors"
+            >
               Features
             </a>
-            <a href="#how-it-works" className="hover:text-white transition-colors">
+            <a
+              href="#how-it-works"
+              onClick={() => trackEvent("footer_link_clicked", { label: "How It Works" })}
+              className="hover:text-white transition-colors"
+            >
               How It Works
             </a>
-            <a href="#comparison" className="hover:text-white transition-colors">
+            <a
+              href="#comparison"
+              onClick={() => trackEvent("footer_link_clicked", { label: "Comparison" })}
+              className="hover:text-white transition-colors"
+            >
               Comparison
             </a>
-            <a href="#smartscreen" className="hover:text-white transition-colors">
+            <a
+              href="#smartscreen"
+              onClick={() => trackEvent("footer_link_clicked", { label: "SmartScreen Guide" })}
+              className="hover:text-white transition-colors"
+            >
               SmartScreen Guide
             </a>
-            <a href="#faq" className="hover:text-white transition-colors">
+            <a
+              href="#faq"
+              onClick={() => trackEvent("footer_link_clicked", { label: "FAQ" })}
+              className="hover:text-white transition-colors"
+            >
               FAQ
             </a>
             <a
               href="https://github.com/Utpal4505/voiceflow-releases/releases"
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() =>
+                trackExternalLinkClicked("Releases", "https://github.com/Utpal4505/voiceflow-releases/releases")
+              }
               className="hover:text-white transition-colors"
             >
               Releases

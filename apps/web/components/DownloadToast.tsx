@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Download, X, ArrowDown, ShieldCheck } from "lucide-react";
 import { VoiceFlowLogo } from "./VoiceFlowLogo";
+import { trackGuideOpened } from "../lib/analytics";
 
 export type DownloadPlatform = "windows" | "mac";
 
@@ -59,6 +60,7 @@ export default function DownloadToast() {
   }, []);
 
   const handleScrollToGuide = () => {
+    trackGuideOpened("smartscreen");
     const el = document.getElementById("smartscreen");
     if (el) {
       el.scrollIntoView({ behavior: "smooth" });
